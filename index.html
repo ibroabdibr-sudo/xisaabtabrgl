@@ -1158,16 +1158,22 @@
         showNotification('System reset complete'); 
     }
     
-    function changeExchangeRate() {
-        let r = prompt('New exchange rate (1 USD = ? Shillings):', EXCHANGE_RATE); 
-        if(r && !isNaN(parseFloat(r)) && parseFloat(r) > 0) {
-            EXCHANGE_RATE = parseFloat(r); 
-            document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
-            recalculateAllBalances(); 
-            saveToLocalStorage(); 
-            showNotification(`Rate updated: 1 USD = ${EXCHANGE_RATE} SH`);
-        }
+function changeExchangeRate() {
+    // Only admin (Khalid) can change exchange rate
+    if(currentUser !== 'khalid') {
+        showNotification('Only Admin (Khalid) can change the exchange rate', 'error');
+        return;
     }
+    
+    let r = prompt('New exchange rate (1 USD = ? Shillings):', EXCHANGE_RATE); 
+    if(r && !isNaN(parseFloat(r)) && parseFloat(r) > 0) {
+        EXCHANGE_RATE = parseFloat(r); 
+        document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
+        recalculateAllBalances(); 
+        saveToLocalStorage(); 
+        showNotification(`Exchange rate updated: 1 USD = ${EXCHANGE_RATE} SH - Rate will persist until changed by admin`);
+    }
+}
     
     // Expose functions to global scope
     window.selectUser = selectUser;
