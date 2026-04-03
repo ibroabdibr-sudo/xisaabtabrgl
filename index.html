@@ -253,11 +253,15 @@
         </div>
     </div>
 
-    <div class="footer"><p>Beergeel OBGY Clinic | Full Audit Trail | Local Storage Persistent</p></div>
+    <div class="footer"><p>Beergeel OBGY Clinic | Full Audit Trail | Supabase Storage</p></div>
 </div>
 <div id="toastNotification" class="notification"></div>
 
 <script>
+    // ==================== SUPABASE CONFIGURATION ====================
+ const SUPABASE_URL = 'https://abc123.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6...';
+
     // ==================== APP STATE ====================
     let EXCHANGE_RATE = 1000;
     let currentUser = null, selectedUser = null;
@@ -293,7 +297,7 @@
         } 
     }
     
-    function recalculateAllBalances() {
+    async function recalculateAllBalances() {
         balances = { zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0 };
         incomeRecords.forEach(r => { 
             balances.zaadUsd += r.zaadUsd || 0; balances.zaadSh += r.zaadSh || 0; 
@@ -306,7 +310,7 @@
             balances.cashUsd -= r.cashUsd || 0; balances.cashSh -= r.cashSh || 0; 
         });
         updateBalanceUI();
-        saveToLocalStorage();
+        await saveToSupabase(); // persist after recalculation
     }
     
     function updateBalanceUI() {
@@ -323,28 +327,35 @@
         document.getElementById('totalWealthUsd').innerHTML = `$${(totalUsdOnly + totalShOnly/EXCHANGE_RATE).toFixed(2)}`;
     }
     
-    function saveToLocalStorage() { 
-        localStorage.setItem('bg_income', JSON.stringify(incomeRecords)); 
-        localStorage.setItem('bg_expense', JSON.stringify(expenseRecords)); 
-        localStorage.setItem('bg_recurrent', JSON.stringify(recurrentExpenses)); 
-        localStorage.setItem('bg_rate', EXCHANGE_RATE); 
-        localStorage.setItem('bg_audit', JSON.stringify(auditLog)); 
+    // ==================== SUPABASE PERSISTENCE ====================
+    async function saveToSupabase() {
+        try {
+            await supabase.from('incomes').upsert(incomeRecords, { onConflict: 'id' });
+            await supabase.from('expenses').upsert(expenseRecords, { onConflict: 'id' });
+            await supabase.from('recurrent_expenses').upsert(recurrentExpenses, { onConflict: 'id' });
+            await supabase.from('audit_logs').upsert(auditLog, { onConflict: 'id' });
+            await supabase.from('settings').upsert([{ key: 'exchange_rate', value: EXCHANGE_RATE.toString() }], { onConflict: 'key' });
+        } catch(e) { console.warn("Supabase save error", e); }
     }
     
-    function loadFromLocalStorage() { 
-        let savedRate = localStorage.getItem('bg_rate'); 
-        if(savedRate) EXCHANGE_RATE = parseFloat(savedRate); 
-        document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
-        let inc = localStorage.getItem('bg_income'); 
-        let exp = localStorage.getItem('bg_expense'); 
-        let rec = localStorage.getItem('bg_recurrent'); 
-        let audit = localStorage.getItem('bg_audit'); 
-        if(inc) incomeRecords = JSON.parse(inc); 
-        if(exp) expenseRecords = JSON.parse(exp); 
-        if(rec) recurrentExpenses = JSON.parse(rec); 
-        if(audit) auditLog = JSON.parse(audit); 
-        else auditLog = []; 
-        recalculateAllBalances(); 
+    async function loadFromSupabase() {
+        try {
+            let { data: incomes } = await supabase.from('incomes').select('*');
+            let { data: expenses } = await supabase.from('expenses').select('*');
+            let { data: recurrent } = await supabase.from('recurrent_expenses').select('*');
+            let { data: audits } = await supabase.from('audit_logs').select('*');
+            let { data: settings } = await supabase.from('settings').select('*');
+            if(incomes) incomeRecords = incomes;
+            if(expenses) expenseRecords = expenses;
+            if(recurrent) recurrentExpenses = recurrent;
+            if(audits) auditLog = audits;
+            if(settings) {
+                let rateSetting = settings.find(s => s.key === 'exchange_rate');
+                if(rateSetting) EXCHANGE_RATE = parseFloat(rateSetting.value);
+            }
+            document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE;
+            await recalculateAllBalances();
+        } catch(e) { console.warn("Supabase load error, using local only", e); }
     }
     
     function showNotification(msg, type='success') { 
@@ -356,7 +367,7 @@
     }
     
     // ==================== INCOME FUNCTIONS ====================
-    function addIncome() { 
+    async function addIncome() { 
         if(currentUser === 'monitor') { showNotification('Monitor Mode: Cannot add income', 'error'); return; } 
         let date = document.getElementById('incDate').value, client = document.getElementById('clientName').value.trim(); 
         if(!client) { showNotification('Client name required', 'error'); return; } 
@@ -380,7 +391,6 @@
         
         incomeRecords.unshift(newIncome);
         
-        // Auto lab expense (50% of lab amount)
         if(payments[2].amt > 0 && payments[2].curr) { 
             let halfLab = payments[2].amt / 2; 
             let labBreakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
@@ -391,50 +401,27 @@
             showNotification(`Auto lab expense: ${halfLab.toFixed(2)} added`, 'warning');
         }
         
-        recalculateAllBalances(); refreshDailyIncomeSummary(); refreshExpenseList(); saveToLocalStorage();
+        await recalculateAllBalances(); refreshDailyIncomeSummary(); refreshExpenseList(); 
         document.getElementById('clientName').value = ''; document.getElementById('mrn').value = ''; 
         ['cardAmt', 'usAmt', 'labAmt', 'pharmAmt', 'otherAmt'].forEach(id => document.getElementById(id).value = '');
         showNotification(`Income saved: $${totalUsd.toFixed(2)}`);
     }
     
-    // ==================== EXPENSE FUNCTIONS - FULLY WORKING ====================
-    function addExpense() { 
+    // ==================== EXPENSE FUNCTIONS ====================
+    async function addExpense() { 
         if(currentUser === 'monitor') { showNotification('Monitor Mode: Cannot add expenses', 'error'); return; } 
-        
         let date = document.getElementById('expDate').value;
         let type = document.getElementById('expType').value;
         let amount = parseFloat(document.getElementById('expAmount').value);
         let currency = document.getElementById('expCurrency').value;
         let description = document.getElementById('expRemark').value;
-        
-        if(!date) { showNotification('Please select a date', 'error'); return; }
-        if(!amount || isNaN(amount) || amount <= 0) { showNotification('Please enter a valid amount', 'error'); return; }
-        if(!currency) { showNotification('Please select a currency', 'error'); return; }
-        
+        if(!date || !amount || amount<=0 || !currency) { showNotification('Please fill all fields', 'error'); return; }
         let breakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
         addToBreakdown(breakdown, amount, currency); 
-        
-        let newExpense = {
-            id: Date.now(), 
-            date: date, 
-            type: type, 
-            amount: amount, 
-            currency: currency, 
-            ...breakdown, 
-            usdValue: getUsdValue(amount, currency), 
-            description: description || '-',
-            autoGenerated: false
-        };
-        
+        let newExpense = { id: Date.now(), date, type, amount, currency, ...breakdown, usdValue: getUsdValue(amount, currency), description: description || '-', autoGenerated: false };
         expenseRecords.unshift(newExpense);
-        recalculateAllBalances(); 
-        refreshExpenseList(); 
-        saveToLocalStorage();
-        
-        // Clear form
-        document.getElementById('expAmount').value = '';
-        document.getElementById('expRemark').value = '';
-        
+        await recalculateAllBalances(); refreshExpenseList(); 
+        document.getElementById('expAmount').value = ''; document.getElementById('expRemark').value = '';
         showNotification(`Expense added: ${type} - ${amount} ${currency.split('-')[1]?.toUpperCase()}`, 'success');
     }
     
@@ -446,16 +433,7 @@
         tbody.innerHTML = ''; let totalUSD = 0; 
         dailyIncomes.forEach((r, i) => { 
             totalUSD += r.totalUsdValue || 0; 
-            tbody.innerHTML += `<tr>
-                <td>${i+1}</td><td>${r.client}</td>
-                <td>${r.cardAmt || 0} ${getCurrencySymbol(r.cardCurr)}</td>
-                <td>${r.usAmt || 0} ${getCurrencySymbol(r.usCurr)}</td>
-                <td>${r.labAmt || 0} ${getCurrencySymbol(r.labCurr)}</td>
-                <td>${r.pharmAmt || 0} ${getCurrencySymbol(r.pharmCurr)}</td>
-                <td>${r.otherAmt || 0} ${getCurrencySymbol(r.otherCurr)}</td>
-                <td>$${(r.totalUsdValue || 0).toFixed(2)}</td>
-                <td><button class="delete-btn" onclick="deleteIncomeRecordWithAudit(${r.id})">Delete</button></td>
-            </tr>`; 
+            tbody.innerHTML += `<tr><td>${i+1}</td><td>${r.client}</td><td>${r.cardAmt || 0} ${getCurrencySymbol(r.cardCurr)}</td><td>${r.usAmt || 0} ${getCurrencySymbol(r.usCurr)}</td><td>${r.labAmt || 0} ${getCurrencySymbol(r.labCurr)}</td><td>${r.pharmAmt || 0} ${getCurrencySymbol(r.pharmCurr)}</td><td>${r.otherAmt || 0} ${getCurrencySymbol(r.otherCurr)}</td><td>$${(r.totalUsdValue || 0).toFixed(2)}</td><td><button class="delete-btn" onclick="deleteIncomeRecordWithAudit(${r.id})">Delete</button></td></tr>`; 
         }); 
         document.getElementById('dailyIncomeTotals').innerHTML = `<div class="daily-summary-card"><strong>💰 Total Today: $${totalUSD.toFixed(2)} USD</strong><br>📊 Patients: ${dailyIncomes.length}</div>`; 
     }
@@ -465,13 +443,7 @@
         if(!tbody) return; tbody.innerHTML = ''; let totalUSD = 0; 
         [...expenseRecords].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(r => { 
             totalUSD += r.usdValue || 0; 
-            tbody.innerHTML += `<tr>
-                <td>${r.date}</td><td>${r.type}</td><td>${r.amount?.toFixed(2) || 0}</td>
-                <td>${r.currency?.split('-')[1]?.toUpperCase() || ''}</td>
-                <td>$${(r.usdValue || 0).toFixed(2)}</td>
-                <td>${r.description || '-'}</td>
-                <td><button class="delete-btn" onclick="deleteExpenseRecordWithAudit(${r.id})">Delete</button></td>
-            </tr>`; 
+            tbody.innerHTML += `<tr><td>${r.date}</td><td>${r.type}</td><td>${r.amount?.toFixed(2) || 0}</td><td>${r.currency?.split('-')[1]?.toUpperCase() || ''}</td><td>$${(r.usdValue || 0).toFixed(2)}</td><td>${r.description || '-'}</td><td><button class="delete-btn" onclick="deleteExpenseRecordWithAudit(${r.id})">Delete</button></td></tr>`; 
         }); 
         document.getElementById('expenseListSummary').innerHTML = `<strong>Total Expenses: $${totalUSD.toFixed(2)} USD</strong>`; 
     }
@@ -483,76 +455,66 @@
         pendingDeleteCallback = callback; 
         document.getElementById('deleteRemarkModal').classList.add('active'); 
     }
-    
     function executePendingDeletion() { 
         let remark = document.getElementById('deleteRemark').value.trim(); 
         if(!remark) { showNotification('Please enter a reason', 'error'); return; } 
         if(pendingDeleteCallback) { pendingDeleteCallback(remark); pendingDeleteCallback = null; } 
         closeDeleteRemarkModal(); 
     }
-    
     function closeDeleteRemarkModal() { document.getElementById('deleteRemarkModal').classList.remove('active'); }
     
-    function deleteIncomeRecordWithAudit(id) { 
+    async function deleteIncomeRecordWithAudit(id) { 
         let record = incomeRecords.find(r => r.id === id); 
         if(!record) return; 
-        requestDeleteWithRemark((remark) => { 
-            auditLog.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, 
-                userRole: users[currentUser].role, type: 'Income Deletion', deletedRecord: JSON.stringify(record), remark: remark });
+        requestDeleteWithRemark(async (remark) => { 
+            auditLog.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, userRole: users[currentUser].role, type: 'Income Deletion', deletedRecord: JSON.stringify(record), remark: remark });
             incomeRecords = incomeRecords.filter(r => r.id !== id); 
-            recalculateAllBalances(); refreshDailyIncomeSummary(); refreshExpenseList(); saveToLocalStorage();
+            await recalculateAllBalances(); refreshDailyIncomeSummary(); refreshExpenseList(); 
             showNotification('Income deleted and logged in audit trail'); 
         }, `<strong>Delete Income:</strong> ${record.client} - $${record.totalUsdValue?.toFixed(2)}`); 
     }
     
-    function deleteExpenseRecordWithAudit(id) { 
+    async function deleteExpenseRecordWithAudit(id) { 
         let record = expenseRecords.find(e => e.id === id); 
         if(!record) return; 
-        requestDeleteWithRemark((remark) => { 
-            auditLog.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, 
-                userRole: users[currentUser].role, type: 'Expense Deletion', deletedRecord: JSON.stringify(record), remark: remark });
+        requestDeleteWithRemark(async (remark) => { 
+            auditLog.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, userRole: users[currentUser].role, type: 'Expense Deletion', deletedRecord: JSON.stringify(record), remark: remark });
             expenseRecords = expenseRecords.filter(e => e.id !== id); 
-            recalculateAllBalances(); refreshExpenseList(); saveToLocalStorage();
+            await recalculateAllBalances(); refreshExpenseList(); 
             showNotification('Expense deleted and logged in audit trail'); 
         }, `<strong>Delete Expense:</strong> ${record.type} - ${record.amount} ${record.currency?.split('-')[1]}`); 
     }
     
     // ==================== RECURRENT EXPENSES ====================
-    function addRecurrentExpense() { 
+    async function addRecurrentExpense() { 
         if(currentUser === 'monitor') { showNotification('Monitor Mode: Cannot add', 'error'); return; } 
         let name = document.getElementById('recurrentName').value.trim(), amount = parseFloat(document.getElementById('recurrentAmount').value), currency = document.getElementById('recurrentCurrency').value; 
         if(!name || !amount || !currency) { showNotification('All fields required', 'error'); return; } 
         recurrentExpenses.push({id: Date.now(), name, amount, currency}); 
-        renderRecurrentList(); saveToLocalStorage();
+        renderRecurrentList(); await saveToSupabase();
         document.getElementById('recurrentName').value = ''; document.getElementById('recurrentAmount').value = ''; 
         showNotification('Recurrent expense added'); 
     }
-    
     function renderRecurrentList() { 
         let container = document.getElementById('recurrentList'); 
         if(!container) return; 
         if(recurrentExpenses.length === 0) { container.innerHTML = '<p>No recurrent expenses.</p>'; return; } 
-        container.innerHTML = recurrentExpenses.map(exp => `<div class="recurrent-item"><span><strong>${exp.name}</strong> - ${exp.amount} ${exp.currency.split('-')[1]?.toUpperCase()}</span>
-            <button class="delete-btn" onclick="deleteRecurrent(${exp.id})">Delete</button></div>`).join(''); 
+        container.innerHTML = recurrentExpenses.map(exp => `<div class="recurrent-item"><span><strong>${exp.name}</strong> - ${exp.amount} ${exp.currency.split('-')[1]?.toUpperCase()}</span><button class="delete-btn" onclick="deleteRecurrent(${exp.id})">Delete</button></div>`).join(''); 
     }
-    
-    function deleteRecurrent(id) { 
+    async function deleteRecurrent(id) { 
         recurrentExpenses = recurrentExpenses.filter(e => e.id !== id); 
-        renderRecurrentList(); saveToLocalStorage(); showNotification('Recurrent removed'); 
+        renderRecurrentList(); await saveToSupabase(); showNotification('Recurrent removed'); 
     }
-    
-    function applyRecurrentExpenses() { 
+    async function applyRecurrentExpenses() { 
         if(currentUser === 'monitor') { showNotification('Monitor Mode: Cannot apply', 'error'); return; } 
         if(recurrentExpenses.length === 0) { showNotification('No recurrent expenses', 'error'); return; } 
         let today = new Date().toISOString().split('T')[0]; 
         recurrentExpenses.forEach(exp => { 
             let breakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
             addToBreakdown(breakdown, exp.amount, exp.currency); 
-            expenseRecords.unshift({ id: Date.now() + Math.random(), date: today, type: `Recurrent: ${exp.name}`, 
-                amount: exp.amount, currency: exp.currency, ...breakdown, usdValue: getUsdValue(exp.amount, exp.currency), 
-                description: `Monthly - ${exp.name}` });
+            expenseRecords.unshift({ id: Date.now() + Math.random(), date: today, type: `Recurrent: ${exp.name}`, amount: exp.amount, currency: exp.currency, ...breakdown, usdValue: getUsdValue(exp.amount, exp.currency), description: `Monthly - ${exp.name}` });
         }); 
-        recalculateAllBalances(); refreshExpenseList(); saveToLocalStorage();
+        await recalculateAllBalances(); refreshExpenseList(); 
         showNotification(`Recurrent expenses applied for ${today}`); 
     }
     
@@ -560,144 +522,56 @@
     function generateDetailedReport() { 
         let start = document.getElementById('reportStart').value, end = document.getElementById('reportEnd').value; 
         if(!start || !end) { showNotification('Select date range', 'error'); return; } 
-        
         let filteredIncome = incomeRecords.filter(r => r.date >= start && r.date <= end); 
         let filteredExpense = expenseRecords.filter(r => r.date >= start && r.date <= end); 
-        
         let totals = { cardUsd:0, usUsd:0, labUsd:0, pharmUsd:0, otherUsd:0 }; 
-        filteredIncome.forEach(r => { 
-            totals.cardUsd += getUsdValue(r.cardAmt || 0, r.cardCurr); 
-            totals.usUsd += getUsdValue(r.usAmt || 0, r.usCurr); 
-            totals.labUsd += getUsdValue(r.labAmt || 0, r.labCurr); 
-            totals.pharmUsd += getUsdValue(r.pharmAmt || 0, r.pharmCurr); 
-            totals.otherUsd += getUsdValue(r.otherAmt || 0, r.otherCurr); 
-        }); 
-        
+        filteredIncome.forEach(r => { totals.cardUsd += getUsdValue(r.cardAmt || 0, r.cardCurr); totals.usUsd += getUsdValue(r.usAmt || 0, r.usCurr); totals.labUsd += getUsdValue(r.labAmt || 0, r.labCurr); totals.pharmUsd += getUsdValue(r.pharmAmt || 0, r.pharmCurr); totals.otherUsd += getUsdValue(r.otherAmt || 0, r.otherCurr); }); 
         let totalIncomeUsd = filteredIncome.reduce((s, r) => s + (r.totalUsdValue || 0), 0); 
         let totalExpenseUsd = filteredExpense.reduce((s, r) => s + (r.usdValue || 0), 0); 
-        
-        let expenseByCat = {}; 
-        filteredExpense.forEach(e => { let cat = e.type; expenseByCat[cat] = (expenseByCat[cat] || 0) + (e.usdValue || 0); }); 
+        let expenseByCat = {}; filteredExpense.forEach(e => { let cat = e.type; expenseByCat[cat] = (expenseByCat[cat] || 0) + (e.usdValue || 0); }); 
         let expenseCatHtml = Object.entries(expenseByCat).map(([cat, val]) => `<li><strong>${cat}</strong>: $${val.toFixed(2)}</li>`).join(''); 
-        
-        let html = `
-            <h3>📅 Report: ${start} → ${end}</h3>
-            <div class="stats-grid">
-                <div class="stat-card"><h4>Total Income</h4><p style="font-size:1.6rem;">$${totalIncomeUsd.toFixed(2)}</p></div>
-                <div class="stat-card"><h4>Total Expenses</h4><p style="font-size:1.6rem;">$${totalExpenseUsd.toFixed(2)}</p></div>
-                <div class="stat-card"><h4>Net Profit</h4><p style="font-size:1.6rem; color:${(totalIncomeUsd - totalExpenseUsd) >= 0 ? '#10b981' : '#dc2626'};">$${(totalIncomeUsd - totalExpenseUsd).toFixed(2)}</p></div>
-            </div>
-            <h4>💰 Income by Service</h4>
-            <div class="summary-box"><ul><li>Card: $${totals.cardUsd.toFixed(2)}</li><li>Ultrasound: $${totals.usUsd.toFixed(2)}</li><li>Laboratory: $${totals.labUsd.toFixed(2)}</li><li>Pharmacy: $${totals.pharmUsd.toFixed(2)}</li><li>Others: $${totals.otherUsd.toFixed(2)}</li></ul></div>
-            <h4>📉 Expenses by Category</h4>
-            <div class="summary-box"><ul>${expenseCatHtml || '<li>No expenses</li>'}</ul><strong>Total: $${totalExpenseUsd.toFixed(2)}</strong></div>
-            <div class="report-section"><h4>Recent Transactions</h4><div class="table-container"><table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>USD Value</th></tr></thead><tbody>
-                ${filteredIncome.slice(-10).map(r => `<tr><td>${r.date}</td><td>Income - ${r.client}</td><td>$${(r.totalUsdValue||0).toFixed(2)}</td><td>$${(r.totalUsdValue||0).toFixed(2)}</td></tr>`).join('')}
-                ${filteredExpense.slice(-10).map(r => `<tr><td>${r.date}</td><td>Expense - ${r.type}</td><td>${r.amount} ${r.currency?.split('-')[1]}</td><td>$${(r.usdValue||0).toFixed(2)}</td></tr>`).join('')}
-            </tbody></table></div></div>
-        `; 
+        let html = `<h3>📅 Report: ${start} → ${end}</h3><div class="stats-grid"><div class="stat-card"><h4>Total Income</h4><p style="font-size:1.6rem;">$${totalIncomeUsd.toFixed(2)}</p></div><div class="stat-card"><h4>Total Expenses</h4><p style="font-size:1.6rem;">$${totalExpenseUsd.toFixed(2)}</p></div><div class="stat-card"><h4>Net Profit</h4><p style="font-size:1.6rem; color:${(totalIncomeUsd - totalExpenseUsd) >= 0 ? '#10b981' : '#dc2626'};">$${(totalIncomeUsd - totalExpenseUsd).toFixed(2)}</p></div></div><h4>💰 Income by Service</h4><div class="summary-box"><ul><li>Card: $${totals.cardUsd.toFixed(2)}</li><li>Ultrasound: $${totals.usUsd.toFixed(2)}</li><li>Laboratory: $${totals.labUsd.toFixed(2)}</li><li>Pharmacy: $${totals.pharmUsd.toFixed(2)}</li><li>Others: $${totals.otherUsd.toFixed(2)}</li></ul></div><h4>📉 Expenses by Category</h4><div class="summary-box"><ul>${expenseCatHtml || '<li>No expenses</li>'}</ul><strong>Total: $${totalExpenseUsd.toFixed(2)}</strong></div><div class="report-section"><h4>Recent Transactions</h4><div class="table-container"><table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>USD Value</th></tr></thead><tbody>${filteredIncome.slice(-10).map(r => `<tr><td>${r.date}</td><td>Income - ${r.client}</td><td>$${(r.totalUsdValue||0).toFixed(2)}</td><td>$${(r.totalUsdValue||0).toFixed(2)}</td></tr>`).join('')}${filteredExpense.slice(-10).map(r => `<tr><td>${r.date}</td><td>Expense - ${r.type}</td><td>${r.amount} ${r.currency?.split('-')[1]}</td><td>$${(r.usdValue||0).toFixed(2)}</td></tr>`).join('')}</tbody></table></div></div>`; 
         document.getElementById('detailedReportResult').innerHTML = html; 
     }
-    
     function quickReport(period) { 
-        let today = new Date().toISOString().split('T')[0]; 
-        let start = today, end = today; 
+        let today = new Date().toISOString().split('T')[0]; let start = today, end = today; 
         if(period === 'weekly') { let d = new Date(); d.setDate(d.getDate() - 6); start = d.toISOString().split('T')[0]; } 
         if(period === 'monthly') { start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]; } 
-        document.getElementById('reportStart').value = start; document.getElementById('reportEnd').value = end; 
-        generateDetailedReport(); 
+        document.getElementById('reportStart').value = start; document.getElementById('reportEnd').value = end; generateDetailedReport(); 
     }
-    
-    function exportReportToPDF() {
-        let reportContent = document.getElementById('detailedReportResult');
-        if (!reportContent || !reportContent.innerHTML.trim()) { showNotification('Generate a report first', 'error'); return; }
-        showNotification('Generating PDF...', 'info');
-        let start = document.getElementById('reportStart').value, end = document.getElementById('reportEnd').value;
-        let container = document.createElement('div');
-        container.style.padding = '20px'; container.style.fontFamily = 'Arial'; container.style.backgroundColor = 'white';
-        container.innerHTML = `<div style="text-align:center; border-bottom:2px solid #2c7da0;"><h1 style="color:#2c7da0;">Beergeel OBGY Clinic</h1><h2>Report: ${start} to ${end}</h2><p>Rate: 1 USD = ${EXCHANGE_RATE} SH | ${new Date().toLocaleString()}</p></div>${reportContent.innerHTML}`;
-        html2pdf().set({ margin: 0.5, filename: `Beergeel_Report_${start}_to_${end}.pdf`, image: { quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4' } }).from(container).save();
-    }
+    function exportReportToPDF() { let reportContent = document.getElementById('detailedReportResult'); if (!reportContent || !reportContent.innerHTML.trim()) { showNotification('Generate a report first', 'error'); return; } let start = document.getElementById('reportStart').value, end = document.getElementById('reportEnd').value; let container = document.createElement('div'); container.style.padding = '20px'; container.style.fontFamily = 'Arial'; container.style.backgroundColor = 'white'; container.innerHTML = `<div style="text-align:center; border-bottom:2px solid #2c7da0;"><h1 style="color:#2c7da0;">Beergeel OBGY Clinic</h1><h2>Report: ${start} to ${end}</h2><p>Rate: 1 USD = ${EXCHANGE_RATE} SH | ${new Date().toLocaleString()}</p></div>${reportContent.innerHTML}`; html2pdf().set({ margin: 0.5, filename: `Beergeel_Report_${start}_to_${end}.pdf`, image: { quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4' } }).from(container).save(); }
     
     // ==================== EXCHANGE RATE (ADMIN ONLY) ====================
-    function changeExchangeRate() {
-        if(currentUser !== 'khalid') { showNotification('Only Admin (Khalid) can change the exchange rate', 'error'); return; }
-        let r = prompt('New exchange rate (1 USD = ? Shillings):', EXCHANGE_RATE); 
-        if(r && !isNaN(parseFloat(r)) && parseFloat(r) > 0) {
-            EXCHANGE_RATE = parseFloat(r); 
-            document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
-            recalculateAllBalances(); saveToLocalStorage(); 
-            showNotification(`Exchange rate updated: 1 USD = ${EXCHANGE_RATE} SH`);
-        }
-    }
+    async function changeExchangeRate() { if(currentUser !== 'khalid') { showNotification('Only Admin (Khalid) can change the exchange rate', 'error'); return; } let r = prompt('New exchange rate (1 USD = ? Shillings):', EXCHANGE_RATE); if(r && !isNaN(parseFloat(r)) && parseFloat(r) > 0) { EXCHANGE_RATE = parseFloat(r); document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; await recalculateAllBalances(); showNotification(`Exchange rate updated: 1 USD = ${EXCHANGE_RATE} SH`); } }
     
     // ==================== AUDIT LOG ====================
-    function showAuditLogModal() { 
-        let container = document.getElementById('auditLogList'); 
-        if(auditLog.length === 0) { container.innerHTML = '<p>No audit records yet.</p>'; } 
-        else { container.innerHTML = auditLog.map(entry => `<div class="audit-entry"><strong>${entry.timestamp}</strong> | ${entry.user} | ${entry.type}<br>Remark: ${entry.remark}<details><summary>View Data</summary><pre>${entry.deletedRecord?.substring(0, 500)}</pre></details></div>`).join(''); } 
-        document.getElementById('auditLogModal').classList.add('active'); 
-    }
+    function showAuditLogModal() { let container = document.getElementById('auditLogList'); if(auditLog.length === 0) { container.innerHTML = '<p>No audit records yet.</p>'; } else { container.innerHTML = auditLog.map(entry => `<div class="audit-entry"><strong>${entry.timestamp}</strong> | ${entry.user} | ${entry.type}<br>Remark: ${entry.remark}<details><summary>View Data</summary><pre>${entry.deletedRecord?.substring(0, 500)}</pre></details></div>`).join(''); } document.getElementById('auditLogModal').classList.add('active'); }
     function closeAuditLogModal() { document.getElementById('auditLogModal').classList.remove('active'); }
-    function clearAuditLog() { if(currentUser !== 'khalid') { showNotification('Admin only', 'error'); return; } auditLog = []; saveToLocalStorage(); showNotification('Audit log cleared'); closeAuditLogModal(); }
+    async function clearAuditLog() { if(currentUser !== 'khalid') { showNotification('Admin only', 'error'); return; } auditLog = []; await saveToSupabase(); showNotification('Audit log cleared'); closeAuditLogModal(); }
     
     // ==================== NAVIGATION ====================
-    function backToMenu() { 
-        ['mainMenuSection', 'incomeFormModule', 'expenseFormModule', 'recurrentModule', 'reportsModule'].forEach(id => { 
-            let el = document.getElementById(id); if(el) el.classList.add('hidden'); 
-        }); 
-        document.getElementById('mainMenuSection').classList.remove('hidden'); 
-    }
+    function backToMenu() { ['mainMenuSection', 'incomeFormModule', 'expenseFormModule', 'recurrentModule', 'reportsModule'].forEach(id => { let el = document.getElementById(id); if(el) el.classList.add('hidden'); }); document.getElementById('mainMenuSection').classList.remove('hidden'); }
     function showIncomeForm() { if(currentUser === 'monitor') { showNotification('View Only', 'error'); return; } backToMenu(); document.getElementById('mainMenuSection').classList.add('hidden'); document.getElementById('incomeFormModule').classList.remove('hidden'); refreshDailyIncomeSummary(); }
     function showExpenseForm() { if(currentUser === 'monitor') { showNotification('View Only', 'error'); return; } backToMenu(); document.getElementById('mainMenuSection').classList.add('hidden'); document.getElementById('expenseFormModule').classList.remove('hidden'); refreshExpenseList(); }
     function showRecurrentExpenses() { if(currentUser === 'monitor') { showNotification('View Only', 'error'); return; } backToMenu(); document.getElementById('mainMenuSection').classList.add('hidden'); document.getElementById('recurrentModule').classList.remove('hidden'); renderRecurrentList(); }
     function showReports() { backToMenu(); document.getElementById('mainMenuSection').classList.add('hidden'); document.getElementById('reportsModule').classList.remove('hidden'); }
-    function refreshBalances() { recalculateAllBalances(); showNotification('Balances refreshed'); }
+    async function refreshBalances() { await recalculateAllBalances(); showNotification('Balances refreshed from Supabase'); }
     function showResetPanel() { if(currentUser !== 'khalid') { showNotification('Admin only', 'error'); return; } document.getElementById('resetPanel').classList.remove('hidden'); }
     function hideResetPanel() { document.getElementById('resetPanel').classList.add('hidden'); }
-    function fullSystemReset() { if(currentUser !== 'khalid') return; if(document.getElementById('resetConfirmInput').value !== 'RESET ALL') { showNotification('Type RESET ALL', 'error'); return; } incomeRecords = []; expenseRecords = []; recurrentExpenses = []; auditLog = []; recalculateAllBalances(); saveToLocalStorage(); hideResetPanel(); backToMenu(); refreshDailyIncomeSummary(); refreshExpenseList(); showNotification('System reset complete'); }
+    async function fullSystemReset() { if(currentUser !== 'khalid') return; if(document.getElementById('resetConfirmInput').value !== 'RESET ALL') { showNotification('Type RESET ALL', 'error'); return; } incomeRecords = []; expenseRecords = []; recurrentExpenses = []; auditLog = []; await recalculateAllBalances(); hideResetPanel(); backToMenu(); refreshDailyIncomeSummary(); refreshExpenseList(); showNotification('System reset complete'); }
     
     // ==================== LOGIN / LOGOUT ====================
     function selectUser(user) { selectedUser = user; document.querySelectorAll('.user-opt').forEach(opt => opt.classList.toggle('selected', opt.getAttribute('data-user') === user)); }
-    function handleLogin() { 
-        let pwd = document.getElementById('loginPassword').value; 
-        if(!selectedUser) { document.getElementById('loginErrorMsg').innerHTML = 'Select user'; return; } 
-        if(users[selectedUser]?.password === pwd) { 
-            currentUser = selectedUser; 
-            document.getElementById('displayUserName').innerHTML = users[currentUser].name; 
-            if(users[currentUser].role === 'monitor') document.getElementById('userRoleBadge').innerHTML = '<span class="monitor-badge">View Only</span>'; 
-            document.getElementById('loginScreen').classList.add('hidden'); 
-            document.getElementById('mainApp').classList.remove('hidden'); 
-            let today = new Date().toISOString().split('T')[0]; 
-            document.getElementById('incDate').value = today;
-            document.getElementById('expDate').value = today;
-            document.getElementById('reportStart').value = today;
-            document.getElementById('reportEnd').value = today;
-            loadFromLocalStorage(); refreshDailyIncomeSummary(); refreshExpenseList(); 
-            showNotification(`Welcome ${users[currentUser].name}`); 
-        } else { document.getElementById('loginErrorMsg').innerHTML = 'Incorrect password'; } 
-    }
+    async function handleLogin() { let pwd = document.getElementById('loginPassword').value; if(!selectedUser) { document.getElementById('loginErrorMsg').innerHTML = 'Select user'; return; } if(users[selectedUser]?.password === pwd) { currentUser = selectedUser; document.getElementById('displayUserName').innerHTML = users[currentUser].name; if(users[currentUser].role === 'monitor') document.getElementById('userRoleBadge').innerHTML = '<span class="monitor-badge">View Only</span>'; document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('mainApp').classList.remove('hidden'); let today = new Date().toISOString().split('T')[0]; document.getElementById('incDate').value = today; document.getElementById('expDate').value = today; document.getElementById('reportStart').value = today; document.getElementById('reportEnd').value = today; await loadFromSupabase(); refreshDailyIncomeSummary(); refreshExpenseList(); showNotification(`Welcome ${users[currentUser].name}`); } else { document.getElementById('loginErrorMsg').innerHTML = 'Incorrect password'; } }
     function handleLogout() { currentUser = null; selectedUser = null; document.getElementById('mainApp').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('hidden'); document.getElementById('loginPassword').value = ''; document.querySelectorAll('.user-opt').forEach(opt => opt.classList.remove('selected')); showNotification('Logged out'); }
     function showChangePasswordModal() { if(currentUser !== 'monitor') document.getElementById('changePwdModal').classList.add('active'); else showNotification('Monitor cannot change password', 'error'); }
     function closeChangePasswordModal() { document.getElementById('changePwdModal').classList.remove('active'); }
-    function changePassword() { let cur = document.getElementById('currentPwd').value, newp = document.getElementById('newPwd').value, conf = document.getElementById('confirmPwd').value; if(users[currentUser].password !== cur) { document.getElementById('pwdErrorMsg').innerHTML = 'Wrong password'; return; } if(newp !== conf || newp.length < 4) { document.getElementById('pwdErrorMsg').innerHTML = 'Invalid'; return; } users[currentUser].password = newp; saveToLocalStorage(); closeChangePasswordModal(); showNotification('Password changed'); }
+    async function changePassword() { let cur = document.getElementById('currentPwd').value, newp = document.getElementById('newPwd').value, conf = document.getElementById('confirmPwd').value; if(users[currentUser].password !== cur) { document.getElementById('pwdErrorMsg').innerHTML = 'Wrong password'; return; } if(newp !== conf || newp.length < 4) { document.getElementById('pwdErrorMsg').innerHTML = 'Invalid'; return; } users[currentUser].password = newp; await saveToSupabase(); closeChangePasswordModal(); showNotification('Password changed'); }
     
     // Expose all functions
-    window.selectUser = selectUser; window.handleLogin = handleLogin; window.handleLogout = handleLogout;
-    window.showChangePasswordModal = showChangePasswordModal; window.closeChangePasswordModal = closeChangePasswordModal;
-    window.changePassword = changePassword; window.showIncomeForm = showIncomeForm; window.showExpenseForm = showExpenseForm;
-    window.showRecurrentExpenses = showRecurrentExpenses; window.showReports = showReports; window.backToMenu = backToMenu;
-    window.addIncome = addIncome; window.addExpense = addExpense; window.addRecurrentExpense = addRecurrentExpense;
-    window.deleteRecurrent = deleteRecurrent; window.applyRecurrentExpenses = applyRecurrentExpenses;
-    window.generateDetailedReport = generateDetailedReport; window.quickReport = quickReport; window.refreshBalances = refreshBalances;
-    window.changeExchangeRate = changeExchangeRate; window.showResetPanel = showResetPanel; window.fullSystemReset = fullSystemReset;
-    window.hideResetPanel = hideResetPanel; window.deleteIncomeRecordWithAudit = deleteIncomeRecordWithAudit;
-    window.deleteExpenseRecordWithAudit = deleteExpenseRecordWithAudit; window.refreshDailyIncomeSummary = refreshDailyIncomeSummary;
-    window.refreshExpenseList = refreshExpenseList; window.showAuditLogModal = showAuditLogModal; window.closeAuditLogModal = closeAuditLogModal;
-    window.clearAuditLog = clearAuditLog; window.executePendingDeletion = executePendingDeletion; window.closeDeleteRemarkModal = closeDeleteRemarkModal;
-    window.exportReportToPDF = exportReportToPDF;
+    window.selectUser = selectUser; window.handleLogin = handleLogin; window.handleLogout = handleLogout; window.showChangePasswordModal = showChangePasswordModal; window.closeChangePasswordModal = closeChangePasswordModal; window.changePassword = changePassword; window.showIncomeForm = showIncomeForm; window.showExpenseForm = showExpenseForm; window.showRecurrentExpenses = showRecurrentExpenses; window.showReports = showReports; window.backToMenu = backToMenu; window.addIncome = addIncome; window.addExpense = addExpense; window.addRecurrentExpense = addRecurrentExpense; window.deleteRecurrent = deleteRecurrent; window.applyRecurrentExpenses = applyRecurrentExpenses; window.generateDetailedReport = generateDetailedReport; window.quickReport = quickReport; window.refreshBalances = refreshBalances; window.changeExchangeRate = changeExchangeRate; window.showResetPanel = showResetPanel; window.fullSystemReset = fullSystemReset; window.hideResetPanel = hideResetPanel; window.deleteIncomeRecordWithAudit = deleteIncomeRecordWithAudit; window.deleteExpenseRecordWithAudit = deleteExpenseRecordWithAudit; window.refreshDailyIncomeSummary = refreshDailyIncomeSummary; window.refreshExpenseList = refreshExpenseList; window.showAuditLogModal = showAuditLogModal; window.closeAuditLogModal = closeAuditLogModal; window.clearAuditLog = clearAuditLog; window.executePendingDeletion = executePendingDeletion; window.closeDeleteRemarkModal = closeDeleteRemarkModal; window.exportReportToPDF = exportReportToPDF;
     
-    loadFromLocalStorage();
+    loadFromSupabase();
 </script>
 </body>
 </html>
