@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Beergeel OBGY | Audit-Ready Financial System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: #f0f4f8; min-height: 100vh; }
+        .login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0f2b3d 0%, #1b4d6e 100%); padding: 20px; }
+        .login-card { background: white; border-radius: 32px; width: 100%; max-width: 440px; padding: 2rem; text-align: center; box-shadow: 0 25px 45px rgba(0,0,0,0.2); }
+        .clinic-icon { font-size: 56px; color: #2c7da0; margin-bottom: 12px; }
+        .user-selector { display: flex; gap: 16px; margin: 28px 0 24px; flex-wrap: wrap; justify-content: center; }
+        .user-opt { flex: 1; min-width: 100px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 24px; padding: 14px 8px; cursor: pointer; transition: all 0.2s; }
+        .user-opt i { font-size: 32px; display: block; margin-bottom: 6px; color: #2c7da0; }
+        .user-opt.selected { border-color: #2c7da0; background: #eef4ff; }
+        .user-opt.monitor { border-color: #8b5cf6; }
+        .user-opt.monitor.selected { background: #ede9fe; border-color: #8b5cf6; }
+        .input-group { margin: 20px 0; }
+        .input-group input { width: 100%; padding: 14px 20px; border: 2px solid #e2e8f0; border-radius: 48px; }
+        .btn-login { background: #2c7da0; width: 100%; padding: 14px; border: none; border-radius: 48px; color: white; font-weight: bold; cursor: pointer; }
+        .app-container { max-width: 1500px; margin: 0 auto; padding: 20px; }
+        .top-bar { background: white; border-radius: 28px; padding: 16px 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .user-badge { display: flex; align-items: center; gap: 16px; background: #f1f5f9; padding: 8px 20px; border-radius: 60px; flex-wrap: wrap; }
+        .logout-btn, .change-pwd-btn, .audit-btn { border: none; padding: 8px 20px; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; }
+        .logout-btn { background: #ef4444; }
+        .change-pwd-btn { background: #2c7da0; }
+        .audit-btn { background: #8b5cf6; margin-left: 8px; }
+        .balance-hero { background: linear-gradient(115deg, #1e4a6e, #0f2f46); border-radius: 28px; padding: 24px; color: white; margin-bottom: 28px; }
+        .balance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 20px 0; }
+        .balance-item { background: rgba(255,255,255,0.12); border-radius: 20px; padding: 12px; text-align: center; }
+        .enhanced-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; margin-bottom: 12px; }
+        .total-card { background: rgba(255,255,255,0.12); border-radius: 20px; padding: 14px 18px; }
+        .total-card .value { font-size: 1.4rem; font-weight: bold; }
+        .rate-control { margin-top: 14px; display: flex; justify-content: space-between; background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 60px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .menu-card { background: white; border-radius: 28px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .menu-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
+        .menu-icon { font-size: 44px; color: #2c7da0; margin-bottom: 12px; }
+        .form-panel { background: white; border-radius: 28px; padding: 28px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .flex-row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; }
+        .field { flex: 1; min-width: 180px; }
+        .field label { display: block; font-weight: 600; margin-bottom: 8px; color: #1e3a5f; }
+        input, select, textarea { width: 100%; padding: 12px 16px; border: 1.5px solid #e2e8f0; border-radius: 28px; }
+        textarea { border-radius: 20px; resize: vertical; }
+        .currency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; margin-bottom: 20px; }
+        .btn-primary { background: #2c7da0; border: none; padding: 12px 28px; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; }
+        .btn-secondary { background: #64748b; }
+        .btn-warning { background: #e67e22; }
+        .btn-danger { background: #dc2626; }
+        .btn-success { background: #10b981; }
+        .btn-purple { background: #8b5cf6; }
+        .action-group { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; }
+        .data-table { width: 100%; border-collapse: collapse; background: white; border-radius: 20px; overflow-x: auto; display: block; }
+        .data-table th, .data-table td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 0.85rem; }
+        .data-table thead { display: table-header-group; }
+        .data-table tbody { display: table-row-group; }
+        .data-table tr { display: table-row; }
+        .data-table th, .data-table td { display: table-cell; }
+        .delete-btn, .edit-btn, .view-audit-btn { border: none; padding: 5px 12px; border-radius: 30px; color: white; cursor: pointer; margin: 2px; }
+        .delete-btn { background: #ef4444; }
+        .edit-btn { background: #f59e0b; }
+        .view-audit-btn { background: #8b5cf6; }
+        .summary-box { background: #f8fafc; border-radius: 20px; padding: 18px; margin-top: 20px; }
+        .daily-summary-card { background: linear-gradient(135deg, #1e4a6e, #0f2f46); color: white; border-radius: 20px; padding: 20px; margin-top: 20px; }
+        .hidden { display: none; }
+        .back-link { display: inline-block; background: #e2e8f0; padding: 8px 24px; border-radius: 40px; margin-bottom: 20px; cursor: pointer; font-weight: 500; }
+        .notification { position: fixed; top: 20px; right: 20px; background: #1e3a5f; color: white; padding: 14px 24px; border-radius: 60px; z-index: 1100; opacity: 0; transition: 0.2s; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 32px; padding: 32px; width: 90%; max-width: 550px; max-height: 80vh; overflow-y: auto; }
+        .recurrent-item { background: #f1f5f9; border-radius: 16px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .footer { text-align: center; margin-top: 40px; color: #64748b; font-size: 0.75rem; }
+        .table-container { overflow-x: auto; }
+        .audit-entry { background: #fef9e3; border-left: 4px solid #8b5cf6; padding: 12px; margin-bottom: 10px; border-radius: 12px; }
+        .badge-deleted { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 25px; }
+        .stat-card { background: #f1f5f9; border-radius: 20px; padding: 16px; text-align: center; }
+        .report-section { margin-top: 25px; border-top: 2px solid #e2e8f0; padding-top: 20px; }
+        .monitor-badge { background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; margin-left: 8px; }
+        .disabled-btn { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+        .cloud-status { font-size: 0.7rem; margin-left: 10px; padding: 2px 8px; border-radius: 20px; background: #10b981; color: white; }
+        .cloud-status.offline { background: #f59e0b; }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-wrapper">
+    <div class="login-card">
+        <div class="clinic-icon"><i class="fas fa-hospital-user"></i></div>
+        <h1>Beergeel OBGY Clinic</h1>
+        <p style="color: #5a6e85;">Complete Financial System with Audit Trail</p>
+        <div class="user-selector">
+            <div class="user-opt" data-user="khalid" onclick="selectUser('khalid')"><i class="fas fa-user-md"></i><strong>Khalid</strong><small>Admin</small></div>
+            <div class="user-opt" data-user="mabruka" onclick="selectUser('mabruka')"><i class="fas fa-user-nurse"></i><strong>Mabruka</strong><small>Staff</small></div>
+            <div class="user-opt monitor" data-user="monitor" onclick="selectUser('monitor')"><i class="fas fa-eye"></i><strong>Monitor</strong><small>View Only</small></div>
+        </div>
+        <div class="input-group"><input type="password" id="loginPassword" placeholder="Enter password"></div>
+        <button class="btn-login" onclick="handleLogin()"><i class="fas fa-key"></i> Login</button>
+        <div id="loginErrorMsg" style="color:#dc2626; margin-top: 12px;"></div>
+    </div>
+</div>
+
+<div id="mainApp" class="app-container hidden">
+    <div class="top-bar">
+        <h2><i class="fas fa-stethoscope"></i> Beergeel OBGY Clinic <span id="cloudStatus" class="cloud-status">☁️ Cloud Sync</span></h2>
+        <div class="user-badge"><i class="fas fa-user-circle"></i> <span id="displayUserName">User</span><span id="userRoleBadge"></span>
+            <button class="change-pwd-btn" onclick="showChangePasswordModal()"><i class="fas fa-key"></i> Change Password</button>
+            <button class="audit-btn" onclick="showAuditLogModal()"><i class="fas fa-history"></i> Audit Log</button>
+            <button class="logout-btn" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </div>
+
+    <div id="changePwdModal" class="modal"><div class="modal-content"><h3>Change Password</h3>
+        <div class="field"><label>Current Password</label><input type="password" id="currentPwd"></div>
+        <div class="field"><label>New Password</label><input type="password" id="newPwd"></div>
+        <div class="field"><label>Confirm</label><input type="password" id="confirmPwd"></div>
+        <div class="action-group"><button class="btn-primary" onclick="changePassword()">Update</button><button class="btn-secondary" onclick="closeChangePasswordModal()">Cancel</button></div>
+        <div id="pwdErrorMsg" style="color:#dc2626;"></div></div></div>
+
+    <div id="auditLogModal" class="modal"><div class="modal-content"><h3><i class="fas fa-history"></i> Audit Trail - All Deleted Transactions</h3>
+        <div id="auditLogList" style="max-height: 60vh; overflow-y: auto; margin: 15px 0;"></div>
+        <div class="action-group"><button class="btn-secondary" onclick="closeAuditLogModal()">Close</button><button class="btn-danger" onclick="clearAuditLog()" style="background:#dc2626;">Clear Audit Log (Admin Only)</button></div>
+    </div></div>
+
+    <div id="deleteRemarkModal" class="modal"><div class="modal-content"><h3><i class="fas fa-trash-alt"></i> Confirm Deletion</h3>
+        <div class="field"><label>Reason / Remark (Required)</label><textarea id="deleteRemark" rows="3" placeholder="Enter reason for deletion (e.g., wrong entry, duplicate, refund, etc.)"></textarea></div>
+        <div id="deletePreviewInfo" style="background:#f1f5f9; padding:12px; border-radius:16px; margin:10px 0; font-size:0.85rem;"></div>
+        <div class="action-group"><button class="btn-danger" id="confirmDeleteBtn" onclick="executePendingDeletion()">Confirm Delete</button><button class="btn-secondary" onclick="closeDeleteRemarkModal()">Cancel</button></div>
+    </div></div>
+
+    <div class="balance-hero">
+        <div style="display: flex; justify-content: space-between;"><span><i class="fas fa-wallet"></i> Account Balances</span><button onclick="refreshBalances()" style="background:rgba(255,255,255,0.2); border:none; border-radius:30px; padding:6px 16px; color:white; cursor:pointer;">Refresh</button></div>
+        <div class="balance-grid">
+            <div class="balance-item"><i class="fas fa-mobile-alt"></i> Zaad USD<br><strong id="balZaadUsd">$0.00</strong></div>
+            <div class="balance-item"><i class="fas fa-mobile-alt"></i> Zaad SH<br><strong id="balZaadSh">0 SH</strong></div>
+            <div class="balance-item"><i class="fas fa-sim-card"></i> Edahab USD<br><strong id="balEdahabUsd">$0.00</strong></div>
+            <div class="balance-item"><i class="fas fa-sim-card"></i> Edahab SH<br><strong id="balEdahabSh">0 SH</strong></div>
+            <div class="balance-item"><i class="fas fa-money-bill-wave"></i> Cash USD<br><strong id="balCashUsd">$0.00</strong></div>
+            <div class="balance-item"><i class="fas fa-coins"></i> Cash SH<br><strong id="balCashSh">0 SH</strong></div>
+        </div>
+        <div class="enhanced-totals">
+            <div class="total-card"><h4>TOTAL USD (All USD)</h4><div class="value" id="totalUsdOnly">$0.00</div></div>
+            <div class="total-card"><h4>TOTAL SHILLINGS</h4><div class="value" id="totalShOnly">0 SH</div></div>
+            <div class="total-card"><h4>TOTAL WEALTH (USD)</h4><div class="value" id="totalWealthUsd">$0.00</div></div>
+            <div class="total-card"><h4>TOTAL WEALTH (SH)</h4><div class="value" id="totalWealthSh">0 SH</div></div>
+        </div>
+        <div class="rate-control"><span>1 USD = <span id="rateDisplay">1000</span> Shillings</span><button onclick="changeExchangeRate()" style="background:rgba(255,255,255,0.2); border:none; border-radius:30px; padding:4px 14px;">Change</button></div>
+    </div>
+
+    <div id="mainMenuSection">
+        <div class="menu-grid">
+            <div class="menu-card" id="menuIncome" onclick="showIncomeForm()"><div class="menu-icon"><i class="fas fa-hand-holding-usd"></i></div><h3>Record Income</h3><p>Patient payments + Auto Lab Expense</p></div>
+            <div class="menu-card" id="menuExpense" onclick="showExpenseForm()"><div class="menu-icon"><i class="fas fa-receipt"></i></div><h3>Record Expenses</h3><p>One-time costs</p></div>
+            <div class="menu-card" id="menuRecurrent" onclick="showRecurrentExpenses()"><div class="menu-icon"><i class="fas fa-calendar-alt"></i></div><h3>Recurrent Expenses</h3><p>Salary, Rent, Utilities</p></div>
+            <div class="menu-card" onclick="showReports()"><div class="menu-icon"><i class="fas fa-chart-pie"></i></div><h3>Detailed Reports</h3><p>Full financial analysis + Service breakdown</p></div>
+        </div>
+        <div class="form-panel"><h3>System Management</h3><div class="action-group">
+            <button class="btn-primary btn-warning" id="btnReset" onclick="showResetPanel()">Reset System</button>
+            <button class="btn-primary btn-secondary" id="btnRecurrentApply" onclick="applyRecurrentExpenses()">Apply Monthly Recurrent</button>
+            <button class="btn-primary btn-purple" onclick="syncToCloud()"><i class="fas fa-cloud-upload-alt"></i> Sync to Cloud</button>
+        </div><div id="resetPanel" class="hidden" style="margin-top:20px;background:#fef2f2;padding:20px;border-radius:24px;">
+            <p style="color:#b91c1c">Type "RESET ALL" to confirm:</p><input type="text" id="resetConfirmInput">
+            <div class="action-group"><button class="btn-danger" onclick="fullSystemReset()">PERMANENT RESET</button><button onclick="hideResetPanel()">Cancel</button></div>
+        </div></div>
+    </div>
+
+    <div id="incomeFormModule" class="hidden">
+        <div class="back-link" onclick="backToMenu()">← Back to Menu</div>
+        <div class="form-panel"><h2>➕ Record Income (Auto 50% Lab Expense)</h2>
+            <div class="flex-row"><div class="field"><label>Date</label><input type="date" id="incDate"></div><div class="field"><label>Client Name *</label><input type="text" id="clientName" placeholder="Full name"></div><div class="field"><label>MRN</label><input type="text" id="mrn"></div></div>
+            <div class="currency-grid">
+                <div><label>💳 Card</label><input type="number" id="cardAmt" step="0.01" placeholder="Amount"><select id="cardCurr"><option value="">Currency</option><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div>
+                <div><label>🩺 Ultrasound</label><input type="number" id="usAmt" step="0.01" placeholder="Amount"><select id="usCurr"><option value="">Currency</option><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div>
+                <div><label>🧪 Laboratory</label><input type="number" id="labAmt" step="0.01" placeholder="Amount"><select id="labCurr"><option value="">Currency</option><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div>
+                <div><label>💊 Pharmacy</label><input type="number" id="pharmAmt" step="0.01" placeholder="Amount"><select id="pharmCurr"><option value="">Currency</option><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div>
+                <div><label>📌 Others</label><input type="number" id="otherAmt" step="0.01" placeholder="Amount"><select id="otherCurr"><option value="">Currency</option><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div>
+            </div>
+            <div class="field"><label>Remark</label><input type="text" id="incRemark" placeholder="Optional notes"></div>
+            <div class="action-group"><button class="btn-primary" id="btnSaveIncome" onclick="addIncome()">💾 Save Income</button><button class="btn-primary btn-secondary" onclick="refreshDailyIncomeSummary()">📆 Refresh Today's Summary</button></div>
+        </div>
+        <div id="dailyIncomeSummary" class="form-panel">
+            <h3><i class="fas fa-calendar-day"></i> Today's Income Summary</h3>
+            <div class="table-container"><table class="data-table"><thead><tr><th>#</th><th>Client</th><th>Card</th><th>Ultrasound</th><th>Laboratory</th><th>Pharmacy</th><th>Others</th><th>USD Value</th><th>Actions</th></tr></thead><tbody id="dailyIncomeTbody"></tbody>}</table></div>
+            <div id="dailyIncomeTotals" class="summary-box"></div>
+        </div>
+    </div>
+
+    <div id="expenseFormModule" class="hidden">
+        <div class="back-link" onclick="backToMenu()">← Back</div>
+        <div class="form-panel"><h2>💸 Record Expense</h2>
+            <div class="flex-row"><div class="field"><label>Date</label><input type="date" id="expDate"></div><div class="field"><label>Category</label><select id="expType"><option>Salary</option><option>Rent</option><option>Electricity</option><option>Water</option><option>Internet</option><option>Laboratory Supplies</option><option>Medical Equipment</option><option>Office Items</option><option>Other</option></select></div></div>
+            <div class="flex-row"><div class="field"><label>Amount</label><input type="number" id="expAmount" step="0.01"></div><div class="field"><label>Currency</label><select id="expCurrency"><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div></div>
+            <div class="field"><label>Description</label><input type="text" id="expRemark"></div>
+            <button class="btn-primary" id="btnAddExpense" onclick="addExpense()">Add Expense</button>
+        </div>
+        <div id="expenseListPanel" class="form-panel"><h3>📋 All Expenses (Auto Lab Expenses Shown)</h3>
+            <div class="table-container"><table class="data-table"><thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Currency</th><th>USD Value</th><th>Description</th><th>Action</th></tr></thead><tbody id="expenseListTbody"></tbody>}</table></div>
+            <div id="expenseListSummary" class="summary-box"></div>
+        </div>
+    </div>
+
+    <div id="recurrentModule" class="hidden">
+        <div class="back-link" onclick="backToMenu()">← Back</div>
+        <div class="form-panel"><h2><i class="fas fa-sync-alt"></i> Recurrent Expenses (Monthly)</h2>
+            <div id="recurrentList"></div>
+            <div class="flex-row"><div class="field"><label>Expense Name</label><input type="text" id="recurrentName" placeholder="e.g., Dr. Ahmed Salary"></div>
+            <div class="field"><label>Amount</label><input type="number" id="recurrentAmount" step="0.01"></div>
+            <div class="field"><label>Currency</label><select id="recurrentCurrency"><option value="usd-zaad">Zaad USD</option><option value="sh-zaad">Zaad Shilling</option><option value="usd-edahab">Edahab USD</option><option value="sh-edahab">Edahab Shilling</option><option value="usd-cash">Cash USD</option><option value="sh-cash">Cash Shilling</option></select></div></div>
+            <button class="btn-primary" id="btnAddRecurrent" onclick="addRecurrentExpense()">Add Recurrent Expense</button>
+            <button class="btn-success" onclick="applyRecurrentExpenses()" style="margin-left:10px;">Apply This Month</button>
+        </div>
+    </div>
+
+    <div id="reportsModule" class="hidden">
+        <div class="back-link" onclick="backToMenu()">← Back</div>
+        <div class="form-panel"><h2>📊 DETAILED FINANCIAL REPORTS (Service & Currency Breakdown)</h2>
+            <div class="flex-row"><div class="field"><label>Start Date</label><input type="date" id="reportStart"></div><div class="field"><label>End Date</label><input type="date" id="reportEnd"></div></div>
+            <div class="action-group"><button class="btn-primary" onclick="quickReport('daily')">Today</button><button class="btn-primary" onclick="quickReport('weekly')">This Week</button><button class="btn-primary" onclick="quickReport('monthly')">This Month</button><button class="btn-primary" onclick="generateDetailedReport()">Generate Full Report</button></div>
+            <div id="detailedReportResult" class="summary-box"></div>
+        </div>
+    </div>
+
+    <div class="footer"><p>Beergeel OBGY Clinic | Full Audit Trail: Every deletion requires remark & is logged with user, timestamp, and details.</p></div>
+</div>
+<div id="toastNotification" class="notification"></div>
+
+<script>
+    // Supabase Configuration (Your credentials)
+    const SUPABASE_URL = 'https://fcaiagkfpwlxntrinudm.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjYWlhZ2tmcHdseG50cmludWRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDUwMjQsImV4cCI6MjA5MDcyMTAyNH0.-qAxsqwK-6Fyha68VgIbiDVUYweGW7cMhTROMsygcs4';
+    
+    let supabaseClient = null;
+    let cloudEnabled = false;
+    
+    // Initialize Supabase
+    try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        cloudEnabled = true;
+        console.log('Supabase initialized');
+    } catch(e) {
+        console.warn('Supabase not available:', e);
+        cloudEnabled = false;
+    }
+    
+    // App State
+    let EXCHANGE_RATE = 1000;
+    let currentUser = null, selectedUser = null;
+    let users = { 
+        khalid: { password: '4141', name: 'Khalid (Admin)', role: 'admin' }, 
+        mabruka: { password: '4242', name: 'Mabruka', role: 'staff' },
+        monitor: { password: '4343', name: 'Monitor', role: 'monitor' }
+    };
+    
+    let incomeRecords = [], expenseRecords = [], recurrentExpenses = [];
+    let auditLog = [];
+    let balances = { zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0 };
+    
+    // Helper Functions
+    function getUsdValue(amount, currencyCode) { 
+        if(!currencyCode || !amount) return 0; 
+        return currencyCode.startsWith('usd') ? amount : amount / EXCHANGE_RATE; 
+    }
+    
+    function getCurrencySymbol(code) { 
+        if(!code) return ''; 
+        return code.startsWith('usd') ? 'USD' : 'SH'; 
+    }
+    
+    function addToBreakdown(b, amt, code) { 
+        if(!code || !amt) return; 
+        switch(code){ 
+            case'usd-zaad': b.zaadUsd += amt; break; 
+            case'sh-zaad': b.zaadSh += amt; break; 
+            case'usd-edahab': b.edahabUsd += amt; break; 
+            case'sh-edahab': b.edahabSh += amt; break; 
+            case'usd-cash': b.cashUsd += amt; break; 
+            case'sh-cash': b.cashSh += amt; break; 
+        } 
+    }
+    
+    function recalculateAllBalances() {
+        balances = { zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0 };
+        incomeRecords.forEach(r => { 
+            balances.zaadUsd += r.zaadUsd || 0; 
+            balances.zaadSh += r.zaadSh || 0; 
+            balances.edahabUsd += r.edahabUsd || 0; 
+            balances.edahabSh += r.edahabSh || 0; 
+            balances.cashUsd += r.cashUsd || 0; 
+            balances.cashSh += r.cashSh || 0; 
+        });
+        expenseRecords.forEach(r => { 
+            balances.zaadUsd -= r.zaadUsd || 0; 
+            balances.zaadSh -= r.zaadSh || 0; 
+            balances.edahabUsd -= r.edahabUsd || 0; 
+            balances.edahabSh -= r.edahabSh || 0; 
+            balances.cashUsd -= r.cashUsd || 0; 
+            balances.cashSh -= r.cashSh || 0; 
+        });
+        updateBalanceUI();
+        saveToLocalStorage();
+    }
+    
+    function updateBalanceUI() {
+        document.getElementById('balZaadUsd').innerHTML = `$${balances.zaadUsd.toFixed(2)}`;
+        document.getElementById('balZaadSh').innerHTML = `${Math.round(balances.zaadSh)} SH`;
+        document.getElementById('balEdahabUsd').innerHTML = `$${balances.edahabUsd.toFixed(2)}`;
+        document.getElementById('balEdahabSh').innerHTML = `${Math.round(balances.edahabSh)} SH`;
+        document.getElementById('balCashUsd').innerHTML = `$${balances.cashUsd.toFixed(2)}`;
+        document.getElementById('balCashSh').innerHTML = `${Math.round(balances.cashSh)} SH`;
+        let totalUsdOnly = balances.zaadUsd + balances.edahabUsd + balances.cashUsd;
+        let totalShOnly = balances.zaadSh + balances.edahabSh + balances.cashSh;
+        document.getElementById('totalUsdOnly').innerHTML = `$${totalUsdOnly.toFixed(2)}`;
+        document.getElementById('totalShOnly').innerHTML = `${Math.round(totalShOnly)} SH`;
+        document.getElementById('totalWealthUsd').innerHTML = `$${(totalUsdOnly + totalShOnly/EXCHANGE_RATE).toFixed(2)}`;
+        document.getElementById('totalWealthSh').innerHTML = `${Math.round(totalUsdOnly * EXCHANGE_RATE + totalShOnly)} SH`;
+    }
+    
+    function saveToLocalStorage() { 
+        localStorage.setItem('bg_income', JSON.stringify(incomeRecords)); 
+        localStorage.setItem('bg_expense', JSON.stringify(expenseRecords)); 
+        localStorage.setItem('bg_recurrent', JSON.stringify(recurrentExpenses)); 
+        localStorage.setItem('bg_rate', EXCHANGE_RATE); 
+        localStorage.setItem('bg_users', JSON.stringify(users)); 
+        localStorage.setItem('bg_audit', JSON.stringify(auditLog)); 
+    }
+    
+    function loadFromLocalStorage() { 
+        let savedRate = localStorage.getItem('bg_rate'); 
+        if(savedRate) EXCHANGE_RATE = parseFloat(savedRate); 
+        document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
+        let inc = localStorage.getItem('bg_income'); 
+        let exp = localStorage.getItem('bg_expense'); 
+        let rec = localStorage.getItem('bg_recurrent'); 
+        let audit = localStorage.getItem('bg_audit'); 
+        if(inc) incomeRecords = JSON.parse(inc); 
+        if(exp) expenseRecords = JSON.parse(exp); 
+        if(rec) recurrentExpenses = JSON.parse(rec); 
+        if(audit) auditLog = JSON.parse(audit); 
+        else auditLog = []; 
+        recalculateAllBalances(); 
+    }
+    
+    function showNotification(msg, type='success') { 
+        let toast = document.getElementById('toastNotification'); 
+        toast.innerHTML = msg; 
+        toast.style.background = type === 'error' ? '#dc2626' : '#2c7da0'; 
+        toast.style.opacity = '1'; 
+        setTimeout(() => toast.style.opacity = '0', 2800); 
+    }
+    
+    // Cloud Sync Functions
+    async function syncToCloud() {
+        if (!cloudEnabled || !supabaseClient) {
+            showNotification('Cloud sync not available - using local storage only', 'error');
+            return;
+        }
+        
+        showNotification('Syncing to cloud...', 'info');
+        const statusSpan = document.getElementById('cloudStatus');
+        statusSpan.textContent = '☁️ Syncing...';
+        
+        try {
+            // Create tables if they don't exist (this requires admin privileges)
+            // For now, we'll just try to insert/update
+            
+            // Sync incomes
+            for (let income of incomeRecords) {
+                const { error } = await supabaseClient
+                    .from('incomes')
+                    .upsert(income, { onConflict: 'id' });
+                if (error) console.warn('Income sync error:', error);
+            }
+            
+            // Sync expenses
+            for (let expense of expenseRecords) {
+                const { error } = await supabaseClient
+                    .from('expenses')
+                    .upsert(expense, { onConflict: 'id' });
+                if (error) console.warn('Expense sync error:', error);
+            }
+            
+            // Sync recurrent expenses
+            for (let rec of recurrentExpenses) {
+                const { error } = await supabaseClient
+                    .from('recurrent_expenses')
+                    .upsert(rec, { onConflict: 'id' });
+                if (error) console.warn('Recurrent sync error:', error);
+            }
+            
+            // Sync audit log
+            for (let audit of auditLog) {
+                const { error } = await supabaseClient
+                    .from('audit_logs')
+                    .upsert(audit, { onConflict: 'id' });
+                if (error) console.warn('Audit sync error:', error);
+            }
+            
+            // Sync exchange rate
+            const { error } = await supabaseClient
+                .from('settings')
+                .upsert({ key: 'exchange_rate', value: EXCHANGE_RATE.toString() });
+            
+            statusSpan.textContent = '☁️ Cloud Sync';
+            showNotification('Successfully synced to cloud!', 'success');
+        } catch(e) {
+            console.error('Sync error:', e);
+            statusSpan.textContent = '⚠️ Sync Failed';
+            showNotification('Cloud sync failed - check console', 'error');
+        }
+    }
+    
+    async function loadFromCloud() {
+        if (!cloudEnabled || !supabaseClient) {
+            showNotification('Cloud not available - using local data', 'error');
+            return false;
+        }
+        
+        try {
+            const statusSpan = document.getElementById('cloudStatus');
+            statusSpan.textContent = '☁️ Loading...';
+            
+            // Try to load incomes
+            const { data: incomes, error: incErr } = await supabaseClient
+                .from('incomes')
+                .select('*')
+                .limit(1000);
+            
+            if (!incErr && incomes && incomes.length > 0) {
+                incomeRecords = incomes;
+                console.log(`Loaded ${incomes.length} incomes from cloud`);
+            }
+            
+            // Try to load expenses
+            const { data: expenses, error: expErr } = await supabaseClient
+                .from('expenses')
+                .select('*')
+                .limit(1000);
+            
+            if (!expErr && expenses && expenses.length > 0) {
+                expenseRecords = expenses;
+                console.log(`Loaded ${expenses.length} expenses from cloud`);
+            }
+            
+            // Try to load recurrent
+            const { data: recurrents, error: recErr } = await supabaseClient
+                .from('recurrent_expenses')
+                .select('*');
+            
+            if (!recErr && recurrents && recurrents.length > 0) {
+                recurrentExpenses = recurrents;
+            }
+            
+            // Try to load audit logs
+            const { data: audits, error: audErr } = await supabaseClient
+                .from('audit_logs')
+                .select('*')
+                .limit(500);
+            
+            if (!audErr && audits && audits.length > 0) {
+                auditLog = audits;
+            }
+            
+            // Try to load exchange rate
+            const { data: rateData, error: rateErr } = await supabaseClient
+                .from('settings')
+                .select('value')
+                .eq('key', 'exchange_rate')
+                .single();
+            
+            if (!rateErr && rateData) {
+                EXCHANGE_RATE = parseFloat(rateData.value);
+                document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE;
+            }
+            
+            recalculateAllBalances();
+            statusSpan.textContent = '☁️ Cloud Sync';
+            showNotification('Loaded data from cloud!', 'success');
+            return true;
+        } catch(e) {
+            console.warn('Cloud load failed:', e);
+            document.getElementById('cloudStatus').textContent = '💾 Local Only';
+            return false;
+        }
+    }
+    
+    // Deletion Functions with Audit
+    let pendingDeleteCallback = null;
+    
+    function requestDeleteWithRemark(callback, previewText) { 
+        if(!currentUser) return; 
+        document.getElementById('deletePreviewInfo').innerHTML = previewText; 
+        document.getElementById('deleteRemark').value = ''; 
+        pendingDeleteCallback = callback; 
+        document.getElementById('deleteRemarkModal').classList.add('active'); 
+    }
+    
+    function executePendingDeletion() { 
+        let remark = document.getElementById('deleteRemark').value.trim(); 
+        if(!remark) { 
+            showNotification('Please enter a remark/reason for deletion', 'error'); 
+            return; 
+        } 
+        if(pendingDeleteCallback) { 
+            pendingDeleteCallback(remark); 
+            pendingDeleteCallback = null; 
+        } 
+        closeDeleteRemarkModal(); 
+    }
+    
+    function closeDeleteRemarkModal() { 
+        document.getElementById('deleteRemarkModal').classList.remove('active'); 
+        pendingDeleteCallback = null; 
+    }
+    
+    function deleteIncomeRecordWithAudit(id) { 
+        let record = incomeRecords.find(r => r.id === id); 
+        if(!record) return; 
+        let associatedLabExpenses = expenseRecords.filter(e => e.autoGenerated && e.description && e.description.includes(record.client));
+        let preview = `<strong>Income Record:</strong><br>Client: ${record.client}<br>Date: ${record.date}<br>Total USD: $${(record.totalUsdValue||0).toFixed(2)}<br><span style="color:#e67e22;">⚠️ This will also delete any auto-generated lab expense from this transaction.</span>`;
+        requestDeleteWithRemark((remark) => { 
+            let auditEntry = { id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, userRole: users[currentUser].role, type: 'Income Deletion', deletedRecord: JSON.stringify(record, null, 2), remark: remark };
+            auditLog.unshift(auditEntry);
+            
+            let deletedLabExpenses = expenseRecords.filter(e => e.autoGenerated && e.description && e.description.includes(record.client));
+            deletedLabExpenses.forEach(exp => {
+                let labAudit = { id: Date.now() + Math.random(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, userRole: users[currentUser].role, type: 'Auto Lab Expense Deletion (Linked)', deletedRecord: JSON.stringify(exp, null, 2), remark: `Deleted because parent income record was deleted. Reason: ${remark}` };
+                auditLog.unshift(labAudit);
+                expenseRecords = expenseRecords.filter(e => e.id !== exp.id);
+            });
+            
+            incomeRecords = incomeRecords.filter(r => r.id !== id); 
+            recalculateAllBalances(); 
+            refreshDailyIncomeSummary(); 
+            refreshExpenseList(); 
+            saveToLocalStorage();
+            showNotification(`Income record and ${deletedLabExpenses.length} associated lab expense(s) deleted and logged in audit trail`); 
+        }, preview); 
+    }
+    
+    function deleteExpenseRecordWithAudit(id) { 
+        let record = expenseRecords.find(e => e.id === id); 
+        if(!record) return; 
+        let preview = `<strong>Expense Record:</strong><br>Type: ${record.type}<br>Date: ${record.date}<br>Amount: ${record.amount} ${record.currency?.split('-')[1]?.toUpperCase()}<br>USD: $${(record.usdValue||0).toFixed(2)}`;
+        requestDeleteWithRemark((remark) => { 
+            let auditEntry = { id: Date.now(), timestamp: new Date().toLocaleString(), user: users[currentUser].name, userRole: users[currentUser].role, type: 'Expense Deletion', deletedRecord: JSON.stringify(record, null, 2), remark: remark };
+            auditLog.unshift(auditEntry);
+            expenseRecords = expenseRecords.filter(e => e.id !== id); 
+            recalculateAllBalances(); 
+            refreshExpenseList(); 
+            saveToLocalStorage();
+            showNotification('Expense deleted and logged in audit trail'); 
+        }, preview); 
+    }
+    
+    function showAuditLogModal() { 
+        let container = document.getElementById('auditLogList'); 
+        if(auditLog.length === 0) { 
+            container.innerHTML = '<p style="text-align:center; color:#666;">No audit records yet. Deleted transactions will appear here.</p>'; 
+        } else { 
+            container.innerHTML = auditLog.map(entry => `<div class="audit-entry"><div><strong>${entry.timestamp}</strong> | <span class="badge-deleted">${entry.type}</span> | <strong>User:</strong> ${entry.user} (${entry.userRole})</div><div><strong>Remark:</strong> ${entry.remark}</div><details><summary>📄 View Deleted Data</summary><pre style="font-size:11px; background:#f1f5f9; padding:8px; border-radius:8px; overflow-x:auto;">${entry.deletedRecord ? entry.deletedRecord.substring(0, 800) : 'No data'}${entry.deletedRecord && entry.deletedRecord.length > 800 ? '...' : ''}</pre></details></div>`).join(''); 
+        } 
+        document.getElementById('auditLogModal').classList.add('active'); 
+    }
+    
+    function closeAuditLogModal() { 
+        document.getElementById('auditLogModal').classList.remove('active'); 
+    }
+    
+    function clearAuditLog() { 
+        if(currentUser !== 'khalid') { 
+            showNotification('Only admin can clear audit log', 'error'); 
+            return; 
+        } 
+        if(confirm('Permanently clear all audit records?')) { 
+            auditLog = []; 
+            saveToLocalStorage(); 
+            showNotification('Audit log cleared'); 
+            closeAuditLogModal(); 
+        } 
+    }
+    
+    // View Only Mode
+    function applyViewOnlyMode() {
+        let isMonitor = currentUser === 'monitor';
+        let actionButtons = ['btnSaveIncome', 'btnAddExpense', 'btnAddRecurrent', 'btnRecurrentApply', 'btnReset'];
+        actionButtons.forEach(id => { 
+            let btn = document.getElementById(id); 
+            if(btn) { 
+                if(isMonitor) btn.classList.add('disabled-btn'); 
+                else btn.classList.remove('disabled-btn'); 
+            } 
+        });
+        
+        let menuActionCards = ['menuIncome', 'menuExpense', 'menuRecurrent'];
+        menuActionCards.forEach(id => { 
+            let card = document.getElementById(id); 
+            if(card) { 
+                if(isMonitor) card.style.opacity = '0.6'; 
+                else card.style.opacity = '1'; 
+            } 
+        });
+        
+        let changePwdBtn = document.querySelector('.change-pwd-btn');
+        if(changePwdBtn) { 
+            if(isMonitor) changePwdBtn.style.display = 'none'; 
+            else changePwdBtn.style.display = 'inline-block'; 
+        }
+        
+        if(isMonitor) showNotification('Monitor Mode: View Only - You can see all data but cannot add or delete transactions', 'info');
+    }
+    
+    // Login/Logout Functions
+    function selectUser(user) { 
+        selectedUser = user; 
+        document.querySelectorAll('.user-opt').forEach(opt => opt.classList.toggle('selected', opt.getAttribute('data-user') === user)); 
+    }
+    
+    async function handleLogin() { 
+        let pwd = document.getElementById('loginPassword').value; 
+        if(!selectedUser) {
+            document.getElementById('loginErrorMsg').innerHTML = 'Select user';
+            return;
+        } 
+        if(users[selectedUser]?.password === pwd) { 
+            currentUser = selectedUser; 
+            document.getElementById('displayUserName').innerHTML = users[currentUser].name; 
+            let roleSpan = document.getElementById('userRoleBadge'); 
+            if(users[currentUser].role === 'monitor') {
+                roleSpan.innerHTML = '<span class="monitor-badge"><i class="fas fa-eye"></i> View Only</span>'; 
+            } else { 
+                roleSpan.innerHTML = ''; 
+            } 
+            document.getElementById('loginScreen').classList.add('hidden'); 
+            document.getElementById('mainApp').classList.remove('hidden'); 
+            
+            // Try to load from cloud first, then fallback to local
+            const cloudLoaded = await loadFromCloud();
+            if (!cloudLoaded) {
+                loadFromLocalStorage();
+            }
+            
+            let today = new Date().toISOString().split('T')[0]; 
+            ['incDate', 'expDate', 'reportStart', 'reportEnd'].forEach(id => {
+                let el = document.getElementById(id);
+                if(el) el.value = today;
+            }); 
+            refreshDailyIncomeSummary(); 
+            refreshExpenseList(); 
+            applyViewOnlyMode(); 
+            showNotification(`Welcome ${users[currentUser].name}`); 
+        } else { 
+            document.getElementById('loginErrorMsg').innerHTML = 'Incorrect password'; 
+        } 
+    }
+    
+    function handleLogout() { 
+        currentUser = null; 
+        selectedUser = null; 
+        document.getElementById('mainApp').classList.add('hidden'); 
+        document.getElementById('loginScreen').classList.remove('hidden'); 
+        document.getElementById('loginPassword').value = ''; 
+        document.querySelectorAll('.user-opt').forEach(opt => opt.classList.remove('selected')); 
+        showNotification('Logged out'); 
+    }
+    
+    function changePassword() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor users cannot change password', 'error'); 
+            return; 
+        } 
+        let cur = document.getElementById('currentPwd').value, 
+            newp = document.getElementById('newPwd').value, 
+            conf = document.getElementById('confirmPwd').value; 
+        if(users[currentUser].password !== cur) {
+            document.getElementById('pwdErrorMsg').innerHTML = 'Wrong password';
+            return;
+        } 
+        if(newp.length < 4) {
+            document.getElementById('pwdErrorMsg').innerHTML = 'Min 4 chars';
+            return;
+        } 
+        if(newp !== conf) {
+            document.getElementById('pwdErrorMsg').innerHTML = 'Mismatch';
+            return;
+        } 
+        users[currentUser].password = newp; 
+        saveToLocalStorage(); 
+        closeChangePasswordModal(); 
+        showNotification('Password changed'); 
+    }
+    
+    function showChangePasswordModal() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor users cannot change password', 'error'); 
+            return; 
+        } 
+        document.getElementById('changePwdModal').classList.add('active'); 
+    }
+    
+    function closeChangePasswordModal() {
+        document.getElementById('changePwdModal').classList.remove('active');
+    }
+    
+    // Navigation
+    function backToMenu() {
+        ['mainMenuSection', 'incomeFormModule', 'expenseFormModule', 'recurrentModule', 'reportsModule'].forEach(id => {
+            let el = document.getElementById(id);
+            if(el) el.classList.add('hidden');
+        }); 
+        document.getElementById('mainMenuSection').classList.remove('hidden'); 
+        applyViewOnlyMode(); 
+    }
+    
+    function showIncomeForm() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: View Only - Cannot add transactions', 'error'); 
+            return; 
+        } 
+        backToMenu(); 
+        document.getElementById('mainMenuSection').classList.add('hidden'); 
+        document.getElementById('incomeFormModule').classList.remove('hidden'); 
+        refreshDailyIncomeSummary(); 
+    }
+    
+    function showExpenseForm() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: View Only - Cannot add transactions', 'error'); 
+            return; 
+        } 
+        backToMenu(); 
+        document.getElementById('mainMenuSection').classList.add('hidden'); 
+        document.getElementById('expenseFormModule').classList.remove('hidden'); 
+        refreshExpenseList(); 
+    }
+    
+    function showRecurrentExpenses() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: View Only - Cannot modify recurrent expenses', 'error'); 
+            return; 
+        } 
+        backToMenu(); 
+        document.getElementById('mainMenuSection').classList.add('hidden'); 
+        document.getElementById('recurrentModule').classList.remove('hidden'); 
+        renderRecurrentList(); 
+    }
+    
+    function showReports() { 
+        backToMenu(); 
+        document.getElementById('mainMenuSection').classList.add('hidden'); 
+        document.getElementById('reportsModule').classList.remove('hidden'); 
+    }
+    
+    function refreshBalances() {
+        recalculateAllBalances(); 
+        showNotification('Balances refreshed');
+    }
+    
+    // Income/Expense Functions
+    function refreshDailyIncomeSummary() { 
+        let today = new Date().toISOString().split('T')[0]; 
+        let dailyIncomes = incomeRecords.filter(r => r.date === today); 
+        let tbody = document.getElementById('dailyIncomeTbody'); 
+        tbody.innerHTML = ''; 
+        let totalUSD = 0; 
+        dailyIncomes.forEach((r, i) => { 
+            totalUSD += r.totalUsdValue || 0; 
+            let deleteBtnHtml = (currentUser !== 'monitor') ? `<button class="delete-btn" onclick="deleteIncomeRecordWithAudit(${r.id})">Delete</button>` : '<button class="delete-btn" disabled style="opacity:0.5;">Delete</button>'; 
+            tbody.innerHTML += `<tr>
+                <td>${i+1}</td>
+                <td>${r.client}</td>
+                <td>${r.cardAmt || 0} ${r.cardCurr ? getCurrencySymbol(r.cardCurr) : ''}</td>
+                <td>${r.usAmt || 0} ${r.usCurr ? getCurrencySymbol(r.usCurr) : ''}</td>
+                <td>${r.labAmt || 0} ${r.labCurr ? getCurrencySymbol(r.labCurr) : ''}</td>
+                <td>${r.pharmAmt || 0} ${r.pharmCurr ? getCurrencySymbol(r.pharmCurr) : ''}</td>
+                <td>${r.otherAmt || 0} ${r.otherCurr ? getCurrencySymbol(r.otherCurr) : ''}</td>
+                <td>$${(r.totalUsdValue || 0).toFixed(2)}</td>
+                <td>${deleteBtnHtml}</td>
+            </tr>`; 
+        }); 
+        let totalSh = totalUSD * EXCHANGE_RATE; 
+        document.getElementById('dailyIncomeTotals').innerHTML = `<div class="daily-summary-card"><strong>💰 Total Income Today: $${totalUSD.toFixed(2)} USD (≈ ${Math.round(totalSh)} SH)</strong><br>📊 Number of Patients: ${dailyIncomes.length}</div>`; 
+    }
+    
+    function refreshExpenseList() { 
+        let tbody = document.getElementById('expenseListTbody'); 
+        if(!tbody) return; 
+        tbody.innerHTML = ''; 
+        let totalUSD = 0; 
+        [...expenseRecords].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(r => { 
+            totalUSD += r.usdValue || 0; 
+            let deleteBtnHtml = (currentUser !== 'monitor') ? `<button class="delete-btn" onclick="deleteExpenseRecordWithAudit(${r.id})">Delete</button>` : '<button class="delete-btn" disabled style="opacity:0.5;">Delete</button>'; 
+            tbody.innerHTML += `<tr>
+                <td>${r.date}</td>
+                <td>${r.type}</td>
+                <td>${r.amount?.toFixed(2) || 0}</td>
+                <td>${r.currency?.split('-')[1]?.toUpperCase() || ''}</td>
+                <td>$${(r.usdValue || 0).toFixed(2)}</td>
+                <td>${r.description || '-'}</td>
+                <td>${deleteBtnHtml}</td>
+            </tr>`; 
+        }); 
+        document.getElementById('expenseListSummary').innerHTML = `<strong>Total Expenses: $${totalUSD.toFixed(2)} USD</strong> (Auto Lab Expenses included)`; 
+    }
+    
+    function addIncome() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: Cannot add income', 'error'); 
+            return; 
+        } 
+        let date = document.getElementById('incDate').value, 
+            client = document.getElementById('clientName').value.trim(); 
+        if(!client) {
+            showNotification('Client name required', 'error');
+            return;
+        } 
+        
+        let payments = [ 
+            {amt: parseFloat(document.getElementById('cardAmt').value) || 0, curr: document.getElementById('cardCurr').value},
+            {amt: parseFloat(document.getElementById('usAmt').value) || 0, curr: document.getElementById('usCurr').value},
+            {amt: parseFloat(document.getElementById('labAmt').value) || 0, curr: document.getElementById('labCurr').value},
+            {amt: parseFloat(document.getElementById('pharmAmt').value) || 0, curr: document.getElementById('pharmCurr').value},
+            {amt: parseFloat(document.getElementById('otherAmt').value) || 0, curr: document.getElementById('otherCurr').value}
+        ]; 
+        
+        let breakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}, 
+            totalUsd = 0; 
+        
+        payments.forEach(p => {
+            if(p.amt > 0 && p.curr) {
+                totalUsd += getUsdValue(p.amt, p.curr); 
+                addToBreakdown(breakdown, p.amt, p.curr);
+            }
+        }); 
+        
+        if(totalUsd === 0) {
+            showNotification('Add payment', 'error');
+            return;
+        } 
+        
+        let labAmount = payments[2].amt, labCurrency = payments[2].curr;
+        
+        let newIncome = {
+            id: Date.now(), 
+            date, client, 
+            mrn: document.getElementById('mrn').value, 
+            cardAmt: payments[0].amt, cardCurr: payments[0].curr,
+            usAmt: payments[1].amt, usCurr: payments[1].curr,
+            labAmt: payments[2].amt, labCurr: payments[2].curr,
+            pharmAmt: payments[3].amt, pharmCurr: payments[3].curr,
+            otherAmt: payments[4].amt, otherCurr: payments[4].curr,
+            ...breakdown, 
+            totalUsdValue: totalUsd, 
+            remark: document.getElementById('incRemark').value
+        };
+        
+        incomeRecords.unshift(newIncome);
+        
+        // Auto lab expense (50% of lab amount)
+        if(labAmount > 0 && labCurrency) { 
+            let halfLab = labAmount / 2; 
+            let labBreakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
+            addToBreakdown(labBreakdown, halfLab, labCurrency); 
+            let newExpense = {
+                id: Date.now() + Math.random() * 1000, 
+                date: date, 
+                type: '🧪 Laboratory Expense (50% Auto)', 
+                amount: halfLab, 
+                currency: labCurrency, 
+                ...labBreakdown, 
+                usdValue: getUsdValue(halfLab, labCurrency), 
+                description: `50% lab expense from ${client}`, 
+                autoGenerated: true
+            };
+            expenseRecords.unshift(newExpense);
+            showNotification(`Auto lab expense: ${halfLab.toFixed(2)} ${labCurrency.split('-')[1]}`, 'warning');
+        }
+        
+        recalculateAllBalances(); 
+        refreshDailyIncomeSummary(); 
+        refreshExpenseList(); 
+        saveToLocalStorage();
+        showNotification('Income saved to local storage'); 
+        
+        // Clear form
+        document.getElementById('clientName').value = ''; 
+        document.getElementById('mrn').value = ''; 
+        ['cardAmt', 'usAmt', 'labAmt', 'pharmAmt', 'otherAmt'].forEach(id => document.getElementById(id).value = '');
+    }
+    
+    function addExpense() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: Cannot add expenses', 'error'); 
+            return; 
+        } 
+        let amt = parseFloat(document.getElementById('expAmount').value), 
+            curr = document.getElementById('expCurrency').value; 
+        if(!amt || !curr) {
+            showNotification('Amount and currency required', 'error');
+            return;
+        } 
+        
+        let breakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
+        addToBreakdown(breakdown, amt, curr); 
+        
+        let newExpense = {
+            id: Date.now(), 
+            date: document.getElementById('expDate').value, 
+            type: document.getElementById('expType').value, 
+            amount: amt, 
+            currency: curr, 
+            ...breakdown, 
+            usdValue: getUsdValue(amt, curr), 
+            description: document.getElementById('expRemark').value
+        };
+        
+        expenseRecords.unshift(newExpense);
+        recalculateAllBalances(); 
+        refreshExpenseList(); 
+        saveToLocalStorage();
+        showNotification('Expense added to local storage'); 
+        document.getElementById('expAmount').value = '';
+    }
+    
+    // Recurrent Expenses
+    function addRecurrentExpense() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: Cannot add recurrent expenses', 'error'); 
+            return; 
+        } 
+        let name = document.getElementById('recurrentName').value.trim(), 
+            amount = parseFloat(document.getElementById('recurrentAmount').value), 
+            currency = document.getElementById('recurrentCurrency').value; 
+        if(!name || !amount || !currency) {
+            showNotification('All fields required', 'error');
+            return;
+        } 
+        
+        let newRecurrent = {id: Date.now(), name, amount, currency};
+        recurrentExpenses.push(newRecurrent); 
+        renderRecurrentList(); 
+        saveToLocalStorage();
+        document.getElementById('recurrentName').value = ''; 
+        document.getElementById('recurrentAmount').value = ''; 
+        showNotification('Recurrent expense added'); 
+    }
+    
+    function renderRecurrentList() { 
+        let container = document.getElementById('recurrentList'); 
+        if(!container) return; 
+        if(recurrentExpenses.length === 0) {
+            container.innerHTML = '<p>No recurrent expenses.</p>';
+            return;
+        } 
+        container.innerHTML = recurrentExpenses.map(exp => `
+            <div class="recurrent-item">
+                <span><strong>${exp.name}</strong> - ${exp.amount} ${exp.currency.split('-')[1]?.toUpperCase()}</span>
+                ${currentUser !== 'monitor' ? `<button class="delete-btn" onclick="deleteRecurrent(${exp.id})">Delete</button>` : '<button class="delete-btn" disabled style="opacity:0.5;">Delete</button>'}
+            </div>
+        `).join(''); 
+    }
+    
+    function deleteRecurrent(id) { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: Cannot delete recurrent expenses', 'error'); 
+            return; 
+        } 
+        recurrentExpenses = recurrentExpenses.filter(e => e.id !== id); 
+        renderRecurrentList(); 
+        saveToLocalStorage();
+        showNotification('Recurrent expense removed'); 
+    }
+    
+    function applyRecurrentExpenses() { 
+        if(currentUser === 'monitor') { 
+            showNotification('Monitor Mode: Cannot apply recurrent expenses', 'error'); 
+            return; 
+        } 
+        if(recurrentExpenses.length === 0) {
+            showNotification('No recurrent expenses', 'error');
+            return;
+        } 
+        
+        let today = new Date().toISOString().split('T')[0]; 
+        recurrentExpenses.forEach(exp => { 
+            let breakdown = {zaadUsd:0, zaadSh:0, edahabUsd:0, edahabSh:0, cashUsd:0, cashSh:0}; 
+            addToBreakdown(breakdown, exp.amount, exp.currency); 
+            let newExpense = {
+                id: Date.now() + Math.random(), 
+                date: today, 
+                type: `Recurrent: ${exp.name}`, 
+                amount: exp.amount, 
+                currency: exp.currency, 
+                ...breakdown, 
+                usdValue: getUsdValue(exp.amount, exp.currency), 
+                description: `Monthly - ${exp.name}`
+            };
+            expenseRecords.unshift(newExpense);
+        }); 
+        recalculateAllBalances(); 
+        refreshExpenseList(); 
+        saveToLocalStorage();
+        showNotification(`Recurrent expenses applied for ${today}`); 
+    }
+    
+    // Reports
+    function generateDetailedReport() { 
+        let start = document.getElementById('reportStart').value, 
+            end = document.getElementById('reportEnd').value; 
+        if(!start || !end) {
+            showNotification('Select date range', 'error');
+            return;
+        } 
+        
+        let filteredIncome = incomeRecords.filter(r => r.date >= start && r.date <= end); 
+        let filteredExpense = expenseRecords.filter(r => r.date >= start && r.date <= end); 
+        
+        let totals = { cardUsd:0, usUsd:0, labUsd:0, pharmUsd:0, otherUsd:0 }; 
+        filteredIncome.forEach(r => { 
+            totals.cardUsd += getUsdValue(r.cardAmt || 0, r.cardCurr); 
+            totals.usUsd += getUsdValue(r.usAmt || 0, r.usCurr); 
+            totals.labUsd += getUsdValue(r.labAmt || 0, r.labCurr); 
+            totals.pharmUsd += getUsdValue(r.pharmAmt || 0, r.pharmCurr); 
+            totals.otherUsd += getUsdValue(r.otherAmt || 0, r.otherCurr); 
+        }); 
+        
+        let totalIncomeUsd = filteredIncome.reduce((s, r) => s + (r.totalUsdValue || 0), 0); 
+        let totalExpenseUsd = filteredExpense.reduce((s, r) => s + (r.usdValue || 0), 0); 
+        
+        let expenseByCat = {}; 
+        filteredExpense.forEach(e => { 
+            let cat = e.type; 
+            expenseByCat[cat] = (expenseByCat[cat] || 0) + (e.usdValue || 0); 
+        }); 
+        
+        let expenseCatHtml = Object.entries(expenseByCat).map(([cat, val]) => `<li><strong>${cat}</strong>: $${val.toFixed(2)}</li>`).join(''); 
+        
+        let incomeCurrencyDetails = { USD:0, SH:0 }; 
+        filteredIncome.forEach(r => { 
+            if(r.cardCurr?.startsWith('usd')) incomeCurrencyDetails.USD += getUsdValue(r.cardAmt || 0, r.cardCurr) * EXCHANGE_RATE; 
+            else if(r.cardCurr) incomeCurrencyDetails.SH += (r.cardAmt || 0); 
+            if(r.usCurr?.startsWith('usd')) incomeCurrencyDetails.USD += getUsdValue(r.usAmt || 0, r.usCurr) * EXCHANGE_RATE; 
+            else if(r.usCurr) incomeCurrencyDetails.SH += (r.usAmt || 0); 
+            if(r.labCurr?.startsWith('usd')) incomeCurrencyDetails.USD += getUsdValue(r.labAmt || 0, r.labCurr) * EXCHANGE_RATE; 
+            else if(r.labCurr) incomeCurrencyDetails.SH += (r.labAmt || 0); 
+            if(r.pharmCurr?.startsWith('usd')) incomeCurrencyDetails.USD += getUsdValue(r.pharmAmt || 0, r.pharmCurr) * EXCHANGE_RATE; 
+            else if(r.pharmCurr) incomeCurrencyDetails.SH += (r.pharmAmt || 0); 
+            if(r.otherCurr?.startsWith('usd')) incomeCurrencyDetails.USD += getUsdValue(r.otherAmt || 0, r.otherCurr) * EXCHANGE_RATE; 
+            else if(r.otherCurr) incomeCurrencyDetails.SH += (r.otherAmt || 0); 
+        }); 
+        
+        let html = `
+            <h3>📅 Report: ${start} → ${end}</h3>
+            <div class="stats-grid">
+                <div class="stat-card"><i class="fas fa-chart-line"></i><h4>Total Income (USD)</h4><p style="font-size:1.6rem;">$${totalIncomeUsd.toFixed(2)}</p></div>
+                <div class="stat-card"><i class="fas fa-chart-line"></i><h4>Total Expenses (USD)</h4><p style="font-size:1.6rem;">$${totalExpenseUsd.toFixed(2)}</p></div>
+                <div class="stat-card"><i class="fas fa-chart-line"></i><h4>Net Profit (USD)</h4><p style="font-size:1.6rem; color:${(totalIncomeUsd - totalExpenseUsd) >= 0 ? '#10b981' : '#dc2626'};">$${(totalIncomeUsd - totalExpenseUsd).toFixed(2)}</p></div>
+            </div>
+            <h4>💰 Income Breakdown by Service (USD)</h4>
+            <div class="summary-box">
+                <ul>
+                    <li>💳 Card: $${totals.cardUsd.toFixed(2)}</li>
+                    <li>🩺 Ultrasound: $${totals.usUsd.toFixed(2)}</li>
+                    <li>🧪 Laboratory: $${totals.labUsd.toFixed(2)}</li>
+                    <li>💊 Pharmacy: $${totals.pharmUsd.toFixed(2)}</li>
+                    <li>📌 Others: $${totals.otherUsd.toFixed(2)}</li>
+                </ul>
+            </div>
+            <h4>💵 Income Currency Distribution (Total Value)</h4>
+            <div class="summary-box">
+                <strong>USD Portion:</strong> $${(incomeCurrencyDetails.USD / EXCHANGE_RATE).toFixed(2)} USD | 
+                <strong>Shilling Portion:</strong> ${incomeCurrencyDetails.SH.toFixed(2)} SH (≈ $${(incomeCurrencyDetails.SH / EXCHANGE_RATE).toFixed(2)} USD)
+            </div>
+            <h4>📉 Detailed Expenses by Category</h4>
+            <div class="summary-box">
+                <ul>${expenseCatHtml || '<li>No expenses</li>'}</ul>
+                <strong>Total Expenses: $${totalExpenseUsd.toFixed(2)} USD</strong>
+            </div>
+            <div class="report-section">
+                <h4>📋 Recent Income Records (max 15)</h4>
+                <div class="table-container"><table class="data-table"><thead><tr><th>Date</th><th>Client</th><th>Card</th><th>US</th><th>Lab</th><th>Pharm</th><th>Others</th><th>USD Total</th></tr></thead><tbody>
+                    ${filteredIncome.slice(-15).reverse().map(r => `<tr>
+                        <td>${r.date}</td><td>${r.client}</td>
+                        <td>${r.cardAmt || 0} ${r.cardCurr ? getCurrencySymbol(r.cardCurr) : ''}</td>
+                        <td>${r.usAmt || 0} ${r.usCurr ? getCurrencySymbol(r.usCurr) : ''}</td>
+                        <td>${r.labAmt || 0} ${r.labCurr ? getCurrencySymbol(r.labCurr) : ''}</td>
+                        <td>${r.pharmAmt || 0} ${r.pharmCurr ? getCurrencySymbol(r.pharmCurr) : ''}</td>
+                        <td>${r.otherAmt || 0} ${r.otherCurr ? getCurrencySymbol(r.otherCurr) : ''}</td>
+                        <td>$${(r.totalUsdValue || 0).toFixed(2)}</td>
+                    </tr>`).join('')}
+                </tbody>}表</div>
+                <h4>📋 Recent Expenses (max 15)</h4>
+                <div class="table-container"><table class="data-table"><thead><tr><th>Date</th><th>Category</th><th>Amount (orig)</th><th>Currency</th><th>USD Value</th><th>Description</th></tr></thead><tbody>
+                    ${filteredExpense.slice(-15).reverse().map(r => `<tr>
+                        <td>${r.date}</td><td>${r.type}</td>
+                        <td>${r.amount?.toFixed(2) || 0}</td>
+                        <td>${r.currency?.split('-')[1]?.toUpperCase() || ''}</td>
+                        <td>$${(r.usdValue || 0).toFixed(2)}</td>
+                        <td>${r.description || '-'}</td>
+                    </tr>`).join('')}
+                </tbody>}?</div>
+            </div>
+        `; 
+        document.getElementById('detailedReportResult').innerHTML = html; 
+    }
+    
+    function quickReport(period) { 
+        let today = new Date().toISOString().split('T')[0]; 
+        let start = today, end = today; 
+        if(period === 'weekly') {
+            let d = new Date(); 
+            d.setDate(d.getDate() - 6); 
+            start = d.toISOString().split('T')[0];
+        } 
+        if(period === 'monthly') {
+            let d = new Date(); 
+            d.setDate(1); 
+            start = d.toISOString().split('T')[0];
+        } 
+        document.getElementById('reportStart').value = start; 
+        document.getElementById('reportEnd').value = end; 
+        generateDetailedReport(); 
+    }
+    
+    // System Reset
+    function showResetPanel() {
+        if(currentUser !== 'khalid') {
+            showNotification('Admin only', 'error');
+            return;
+        }
+        document.getElementById('resetPanel').classList.remove('hidden');
+    }
+    
+    function hideResetPanel() {
+        document.getElementById('resetPanel').classList.add('hidden');
+    }
+    
+    function fullSystemReset() {
+        if(currentUser !== 'khalid') return; 
+        if(document.getElementById('resetConfirmInput').value !== 'RESET ALL') {
+            showNotification('Type RESET ALL', 'error');
+            return;
+        } 
+        if(!confirm('DELETE ALL DATA? This cannot be undone!')) return; 
+        
+        incomeRecords = []; 
+        expenseRecords = []; 
+        recurrentExpenses = []; 
+        auditLog = []; 
+        recalculateAllBalances(); 
+        saveToLocalStorage(); 
+        hideResetPanel(); 
+        backToMenu(); 
+        refreshDailyIncomeSummary(); 
+        refreshExpenseList(); 
+        showNotification('System reset complete'); 
+    }
+    
+    function changeExchangeRate() {
+        let r = prompt('New exchange rate (1 USD = ? Shillings):', EXCHANGE_RATE); 
+        if(r && !isNaN(parseFloat(r)) && parseFloat(r) > 0) {
+            EXCHANGE_RATE = parseFloat(r); 
+            document.getElementById('rateDisplay').innerHTML = EXCHANGE_RATE; 
+            recalculateAllBalances(); 
+            saveToLocalStorage(); 
+            showNotification(`Rate updated: 1 USD = ${EXCHANGE_RATE} SH`);
+        }
+    }
+    
+    // Expose functions to global scope
+    window.selectUser = selectUser;
+    window.handleLogin = handleLogin;
+    window.handleLogout = handleLogout;
+    window.showChangePasswordModal = showChangePasswordModal;
+    window.closeChangePasswordModal = closeChangePasswordModal;
+    window.changePassword = changePassword;
+    window.showIncomeForm = showIncomeForm;
+    window.showExpenseForm = showExpenseForm;
+    window.showRecurrentExpenses = showRecurrentExpenses;
+    window.showReports = showReports;
+    window.backToMenu = backToMenu;
+    window.addIncome = addIncome;
+    window.addExpense = addExpense;
+    window.addRecurrentExpense = addRecurrentExpense;
+    window.deleteRecurrent = deleteRecurrent;
+    window.applyRecurrentExpenses = applyRecurrentExpenses;
+    window.generateDetailedReport = generateDetailedReport;
+    window.quickReport = quickReport;
+    window.refreshBalances = refreshBalances;
+    window.changeExchangeRate = changeExchangeRate;
+    window.showResetPanel = showResetPanel;
+    window.fullSystemReset = fullSystemReset;
+    window.hideResetPanel = hideResetPanel;
+    window.deleteIncomeRecordWithAudit = deleteIncomeRecordWithAudit;
+    window.deleteExpenseRecordWithAudit = deleteExpenseRecordWithAudit;
+    window.refreshDailyIncomeSummary = refreshDailyIncomeSummary;
+    window.refreshExpenseList = refreshExpenseList;
+    window.showAuditLogModal = showAuditLogModal;
+    window.closeAuditLogModal = closeAuditLogModal;
+    window.clearAuditLog = clearAuditLog;
+    window.executePendingDeletion = executePendingDeletion;
+    window.closeDeleteRemarkModal = closeDeleteRemarkModal;
+    window.syncToCloud = syncToCloud;
+    
+    // Initialize
+    loadFromLocalStorage();
+</script>
+</body>
+</html>
